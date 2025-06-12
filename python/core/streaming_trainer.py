@@ -1,22 +1,32 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import transforms
-from core.adaptive_augmenter import get_pipeline
-from core.balanced_sampler import create_balanced_subset
 from core.flexible_model import FlexibleDeepMemoryNet
-from core.memory_interface_faiss_multi import MemoryInterfaceFAISS_Multi
+from core.memory_interface_faiss_multi_v2 import MemoryInterfaceFAISS_Multi_V2
+from core.memory_supervisor_v3 import MemorySupervisorV3
 
-class StreamingTrainer:
-    def __init__(self, db_path, model_arch, bottleneck_dim, device):
+class StreamingTrainerV3:
+    def __init__(self, model_arch, bottleneck_dim, device):
         self.device = device
         self.model = FlexibleDeepMemoryNet(model_arch, bottleneck_dim).to(device)
         self.optimizer = optim.Adam(self.model.parameters())
         self.loss_fn = nn.CrossEntropyLoss()
-        self.memory_interface = MemoryInterfaceFAISS_Multi(db_path, dimension=bottleneck_dim)
+        self.memory_interface = MemoryInterfaceFAISS_Multi_V2(dimension=bottleneck_dim)
+        self.supervisor = MemorySupervisorV3(num_classes=10)
+
+    def pretrain_sensory(self, dataset):
+        loader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=True)
+        for _ in range(3):
+            for images, labels in loader:
+                images, labels = images.to(self.device), labels.to(self.device)
+                outputs, _ = self.model(images)
+                loss = self.loss_fn(outputs, labels)
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
 
     def process_new_stream(self, stream_dataset, epochs=3):
-        loader = torch.utils.data.DataLoader(stream_dataset, batch_size=64, shuffle=True)
+        loader = torch.utils.data.DataLoader(stream_dataset, batch_size=128, shuffle=True)
         for _ in range(epochs):
             for images, labels in loader:
                 images, labels = images.to(self.device), labels.to(self.device)
@@ -25,9 +35,8 @@ class StreamingTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-                self.memory_interface.store_trace(activ, labels, epoch=0)
+                self.memory_interface.store_trace(activ, labels)
 
-        self.memory_interface.flush_buffer()
         self.memory_interface.consolidate()
         self.memory_interface.build_faiss_index()
 

@@ -2,7 +2,6 @@
 python/data/
 python/.data/
 data/
-docus/
 
 # 🏗️ Fichiers de build Python
 __pycache__/

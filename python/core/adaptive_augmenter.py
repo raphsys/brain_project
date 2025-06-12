@@ -1,7 +1,6 @@
 import torchvision.transforms as transforms
 import torch
 import random
-import numpy as np
 
 class AddGaussianNoise(object):
     def __init__(self, mean=0., std=0.05):
@@ -11,9 +10,6 @@ class AddGaussianNoise(object):
     def __call__(self, tensor):
         noise = torch.randn_like(tensor) * self.std + self.mean
         return torch.clamp(tensor + noise, 0., 1.)
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}(mean={self.mean}, std={self.std})'
 
 def get_pipeline(samples_per_class):
     if samples_per_class >= 100:
@@ -25,7 +21,7 @@ def get_pipeline(samples_per_class):
     elif samples_per_class >= 10:
         strength = 0.4
     else:
-        strength = 0.5  # very few-shot
+        strength = 0.5
 
     return transforms.Compose([
         transforms.RandomAffine(
