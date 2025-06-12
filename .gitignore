@@ -1,0 +1,39 @@
+# 📦 Dossiers de données (datasets locaux)
+python/data/
+python/.data/
+data/
+docus/
+
+# 🏗️ Fichiers de build Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# 🧪 Checkpoints éventuels
+checkpoints/
+runs/
+outputs/
+
+# 📊 Jupyter et notebooks temporaires
+.ipynb_checkpoints/
+
+# ⚙️ Config éditeurs
+.vscode/
+.idea/
+.DS_Store
+
+# 🏗️ Builds temporaires C++
+build/
+build/*
+
+# ⚙️ Fichiers de logs éventuels
+*.log
+
+# ⚙️ Fichiers système
+*.swp
+*.bak
+
+python/.data/
