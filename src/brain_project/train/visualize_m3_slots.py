@@ -1,152 +1,182 @@
+# FILE: src/brain_project/train/visualize_m3_slots.py
+from __future__ import annotations
+
+import os
+import glob
 from pathlib import Path
+
+import numpy as np
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+from PIL import Image
 
-from brain_project.train.utils import load_image_tensor
-
-# ===== M1 =====
-from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
-
-# ===== M2 (classes explicites) =====
-from brain_project.modules.m2_grouping.end_stopping import EndStopping
-from brain_project.modules.m2_grouping.cocircularity import CoCircularity
-from brain_project.modules.m2_grouping.region_stabilization import RegionStabilization
-
-# ===== M3 =====
+from brain_project.modules.m3_invariance.slots_kmeans import soft_kmeans_slots_barrier
 from brain_project.modules.m3_invariance.geodesic_slots import geodesic_em_slots
 
 
-OUT = Path("./runs/m3_slots")
-OUT.mkdir(parents=True, exist_ok=True)
+def _find_default_image() -> str:
+    for d in ["./data/real_images/test", "./data/real_images"]:
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
+            imgs = sorted(glob.glob(os.path.join(d, ext)))
+            if imgs:
+                return imgs[0]
+    raise SystemExit("No images found in ./data/real_images or ./data/real_images/test")
 
 
-def gradient_edge(x: torch.Tensor) -> torch.Tensor:
+def load_pil(path: str) -> Image.Image:
+    return Image.open(path).convert("RGB")
+
+
+def pil_to_tensor(im: Image.Image) -> torch.Tensor:
+    """(1,3,H,W) float32 in [0,1]"""
+    arr = np.asarray(im).astype(np.float32) / 255.0
+    x = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).contiguous()
+    return x
+
+
+def preprocess_for_midas(im: Image.Image, size: int = 256) -> torch.Tensor:
     """
-    x: (B,K,H,W) -> edge: (B,1,H,W)
+    MiDaS_small accepte un tensor float (B,3,H,W).
+    On fait un preprocess stable (sans dépendre des transforms du hub).
     """
-    dx = x[..., 1:, :] - x[..., :-1, :]       # (B,K,H-1,W)
-    dx = F.pad(dx, (0, 0, 0, 1))              # -> (B,K,H,W)
+    im = im.resize((size, size), resample=Image.BILINEAR)
+    x = pil_to_tensor(im)  # [0,1]
+    # Normalisation type ImageNet (suffisant et stable)
+    mean = torch.tensor([0.485, 0.456, 0.406], dtype=x.dtype).view(1, 3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225], dtype=x.dtype).view(1, 3, 1, 1)
+    x = (x - mean) / std
+    return x
 
-    dy = x[..., :, 1:] - x[..., :, :-1]       # (B,K,H,W-1)
-    dy = F.pad(dy, (0, 1, 0, 0))              # -> (B,K,H,W)
 
-    g = torch.sqrt(dx.pow(2) + dy.pow(2))     # (B,K,H,W)
-    g = g.mean(1, keepdim=True)               # (B,1,H,W)
-    g = g / (g.max() + 1e-6)
+def gradient_barrier(x: torch.Tensor) -> torch.Tensor:
+    """
+    x: (B,1,H,W) -> barrier: (B,1,H,W) in [0,1]
+    Gradient magnitude (L1) with padding to keep same size.
+    """
+    dy = (x[:, :, 1:, :] - x[:, :, :-1, :]).abs()
+    dx = (x[:, :, :, 1:] - x[:, :, :, :-1]).abs()
+    dy = F.pad(dy, (0, 0, 1, 0))
+    dx = F.pad(dx, (1, 0, 0, 0))
+    g = dx + dy
+    g = g / (g.amax(dim=(2, 3), keepdim=True) + 1e-6)
     return g
 
 
-def unwrap_tensor(out):
-    """
-    Convertit les objets *Out* (EndStoppingOut, etc.) en tenseur.
-    Stratégie: champs courants, sinon dict/tuple, sinon erreur explicite.
-    """
-    if isinstance(out, torch.Tensor):
-        return out
-
-    # champs fréquents
-    for k in ("edge", "edges", "out", "map", "resp", "response", "tensor", "x"):
-        if hasattr(out, k):
-            v = getattr(out, k)
-            if isinstance(v, torch.Tensor):
-                return v
-
-    # dict
-    if isinstance(out, dict):
-        for v in out.values():
-            if isinstance(v, torch.Tensor):
-                return v
-
-    # tuple/list
-    if isinstance(out, (tuple, list)):
-        for v in out:
-            if isinstance(v, torch.Tensor):
-                return v
-
-    raise TypeError(
-        f"Impossible d'extraire un Tensor depuis {type(out)}.\n"
-        f"Attributs disponibles: {dir(out)[:40]} ..."
-    )
+def to_np(x: torch.Tensor) -> np.ndarray:
+    return x.detach().cpu().numpy()
 
 
 @torch.no_grad()
 def main():
-    img_path = "./data/real_images/test/5805a4ae-64f4-4d98-be10-612e0483f1fe.jpg"
-    print("Using image:", img_path)
+    path = os.environ.get("M3_IMG", _find_default_image())
+    out_dir = os.environ.get("M3_OUT_DIR", "./runs/m3_slots")
+    img_size = int(os.environ.get("M3_IMG_SIZE", "256"))
 
-    x = load_image_tensor(img_path)
+    k_regions = int(os.environ.get("M3_K_REGIONS", "8"))
+    k_slots = int(os.environ.get("M3_K_SLOTS", "6"))
+    km_iters = int(os.environ.get("M3_KM_ITERS", "10"))
+    geo_iters = int(os.environ.get("M3_GEO_ITERS", "6"))
 
-    # ========= M1 =========
-    m1 = M1V1V2Perception()
-    out1 = m1(x)
-    s1 = out1.s1
-    depth = out1.depth
+    os.makedirs(out_dir, exist_ok=True)
 
-    # ========= Edge =========
-    edge = gradient_edge(s1)                  # (B,1,H,W)
+    print("Using image:", path)
 
-    # ========= M2 (pipeline explicite) =========
-    m2_es = EndStopping(n_bins=8)
-    m2_cc = CoCircularity()                   # si ton __init__ demande des args, on ajustera
-    m2_rs = RegionStabilization()             # idem
+    pil = load_pil(path)
+    pil_resized = pil.resize((img_size, img_size), resample=Image.BILINEAR)
+    x_vis = pil_to_tensor(pil_resized)  # for display
 
-    e_out = m2_es(edge)
-    e = unwrap_tensor(e_out)                  # <<<<< FIX: extraire un Tensor pour cc
+    # ---- MiDaS depth (robuste, sans transforms hub) ----
+    midas = torch.hub.load("intel-isl/MiDaS", "MiDaS_small", pretrained=True)
+    midas.eval()
 
-    c_out = m2_cc(e)
-    c = unwrap_tensor(c_out)                  # <<<<< idem pour rs
+    inp = preprocess_for_midas(pil, size=img_size)  # (1,3,H,W) normalized
+    depth = midas(inp)  # (1,H',W') or (1,H,W) depending model
+    if depth.ndim == 3:
+        depth = depth.unsqueeze(1)  # (1,1,H,W)
+    elif depth.ndim == 4 and depth.shape[1] != 1:
+        # rare, but just in case
+        depth = depth.mean(dim=1, keepdim=True)
 
-    s2_out = m2_rs(c)
-    s2 = unwrap_tensor(s2_out)
+    depth = F.interpolate(depth, size=(img_size, img_size), mode="bilinear", align_corners=False)
+    depth = depth - depth.amin(dim=(2, 3), keepdim=True)
+    depth = depth / (depth.amax(dim=(2, 3), keepdim=True) + 1e-6)
 
-    # ========= M3 (géodésique) =========
-    out = geodesic_em_slots(
-        s2,
-        barrier=s2,
-        num_slots=6,
-        em_iters=5,
-        tau=0.20,
-        w_barrier=6.0,
-        w_feat=1.0,
-        dijkstra_down=1,
-        seed_min_sep=12,
+    # ---- "S2" perceptif minimal : K canaux = projection soft de la depth ----
+    # Ici on reste fidèle à ton objectif: différenciation grossière de zones.
+    s2 = depth.repeat(1, k_regions, 1, 1)
+    s2 = torch.softmax(s2, dim=1)
+
+    # ---- Barrière = gradient (contours) ----
+    barrier = gradient_barrier(depth)
+
+    # ---- M3.2 : soft-kmeans avec barrière ----
+    out_km = soft_kmeans_slots_barrier(
+        s2, barrier=barrier, num_slots=k_slots, iters=km_iters
     )
 
-    masks = out.masks[0]
-    labels = out.labels[0]
+    # ---- M3.4 : slots géodésiques ----
+    out_geo = geodesic_em_slots(
+        w_feat=s2,
+        barrier=barrier,
+        num_slots=k_slots,
+        em_iters=geo_iters
+    )
 
-    # ========= VISU =========
-    fig, axes = plt.subplots(3, 4, figsize=(14, 10))
 
-    axes[0, 0].imshow(x[0].permute(1, 2, 0))
-    axes[0, 0].set_title("Original")
+    # ---- Visualize ----
+    img = to_np(x_vis[0].permute(1, 2, 0))
+    dep = to_np(depth[0, 0])
+    bar = to_np(barrier[0, 0])
 
-    axes[0, 1].imshow(depth[0, 0], cmap="gray")
-    axes[0, 1].set_title("MiDaS depth")
+    # Les sorties peuvent être dataclasses selon ton implémentation
+    km_masks = out_km.masks if hasattr(out_km, "masks") else out_km
+    geo_masks = out_geo.masks if hasattr(out_geo, "masks") else out_geo
+    geo_labels = out_geo.labels if hasattr(out_geo, "labels") else None
 
-    axes[0, 2].imshow(s1.argmax(1)[0])
-    axes[0, 2].set_title("M1 regions (S1)")
+    km0 = to_np(km_masks[0, 0])
+    geo0 = to_np(geo_masks[0, 0])
 
-    axes[0, 3].imshow(edge[0, 0], cmap="gray")
-    axes[0, 3].set_title("Edge map")
+    plt.figure(figsize=(14, 9))
 
-    axes[1, 0].imshow(s2.argmax(1)[0])
-    axes[1, 0].set_title("M2 regions (S2)")
+    plt.subplot(2, 3, 1)
+    plt.imshow(img)
+    plt.title("Image")
+    plt.axis("off")
 
-    axes[1, 1].imshow(labels)
-    axes[1, 1].set_title("M3 labels")
+    plt.subplot(2, 3, 2)
+    plt.imshow(dep, cmap="gray")
+    plt.title("MiDaS depth (normalized)")
+    plt.axis("off")
 
-    for i in range(4):
-        axes[2, i].imshow(masks[i], cmap="gray")
-        axes[2, i].set_title(f"Slot {i}")
+    plt.subplot(2, 3, 3)
+    plt.imshow(bar, cmap="gray")
+    plt.title("Barrier = |∇depth|")
+    plt.axis("off")
 
-    for ax in axes.flatten():
-        ax.axis("off")
+    plt.subplot(2, 3, 4)
+    plt.imshow(km0, cmap="gray")
+    plt.title("M3.2 soft-kmeans slot[0]")
+    plt.axis("off")
 
+    plt.subplot(2, 3, 5)
+    plt.imshow(geo0, cmap="gray")
+    plt.title("M3.4 geodesic slot[0]")
+    plt.axis("off")
+
+    plt.subplot(2, 3, 6)
+    if geo_labels is not None:
+        plt.imshow(to_np(geo_labels[0]), cmap="tab20")
+        plt.title("M3.4 labels (argmax)")
+    else:
+        plt.imshow(np.zeros((img_size, img_size)), cmap="gray")
+        plt.title("M3.4 labels: n/a")
+    plt.axis("off")
+
+    out_path = os.path.join(out_dir, "m3_slots.png")
     plt.tight_layout()
-    out_path = OUT / "m3_slots.png"
     plt.savefig(out_path, dpi=160)
+    plt.close()
     print("Saved:", out_path)
 
 

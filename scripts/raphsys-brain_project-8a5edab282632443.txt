@@ -1,0 +1,3860 @@
+Directory structure:
+└── raphsys-brain_project/
+    ├── README.md
+    ├── AGENTS.md
+    ├── pyproject.toml
+    └── src/
+        └── brain_project/
+            ├── __init__.py
+            ├── config.py
+            ├── model.py
+            ├── eval/
+            │   ├── __init__.py
+            │   ├── linear_probe.py
+            │   └── metrics.py
+            ├── modules/
+            │   ├── m1_perception/
+            │   │   ├── __init__.py
+            │   │   ├── backbone.py
+            │   │   ├── depth_midas.py
+            │   │   ├── soft_regions.py
+            │   │   ├── v1_gabor.py
+            │   │   └── v2_grouping.py
+            │   ├── m2_edges/
+            │   │   ├── __init__.py
+            │   │   └── edges.py
+            │   ├── m2_grouping/
+            │   │   ├── __init__.py
+            │   │   ├── cocircularity.py
+            │   │   ├── end_stopping.py
+            │   │   └── region_stabilization.py
+            │   ├── m3_invariance/
+            │   │   ├── __init__.py
+            │   │   ├── augment.py
+            │   │   ├── geodesic_slots.py
+            │   │   ├── m3_consistency.py
+            │   │   ├── m3_refiner.py
+            │   │   ├── slots_kmeans.py
+            │   │   └── warp.py
+            │   ├── m3_textures/
+            │   │   ├── __init__.py
+            │   │   └── textures.py
+            │   ├── m4_proto_objects/
+            │   │   ├── __init__.py
+            │   │   └── slots.py
+            │   └── m5_recognition/
+            │       ├── __init__.py
+            │       ├── experts.py
+            │       └── router.py
+            ├── train/
+            │   ├── __init__.py
+            │   ├── eval_m1_on_folder.py
+            │   ├── eval_m1_perceptual.py
+            │   ├── eval_m3.py
+            │   ├── eval_m3_slots.py
+            │   ├── train_m1.py
+            │   ├── train_m3.py
+            │   ├── train_probe.py
+            │   ├── utils.py
+            │   ├── visualize_m1.py
+            │   ├── visualize_m1_v1v2.py
+            │   ├── visualize_m1_v2_compare.py
+            │   ├── visualize_m2_cocircularity.py
+            │   ├── visualize_m2_endstopping.py
+            │   ├── visualize_m2_s2.py
+            │   ├── visualize_m3.py
+            │   └── visualize_m3_slots.py
+            └── utils/
+                ├── __init__.py
+                ├── device.py
+                ├── metrics_m1.py
+                ├── seed.py
+                └── visualize.py
+
+================================================
+FILE: README.md
+================================================
+[Empty file]
+
+
+================================================
+FILE: AGENTS.md
+================================================
+# Repository Guidelines
+
+## Project Structure & Module Organization
+- `src/brain_project/` is the main package. Core modules live under `src/brain_project/modules/` (perception, grouping, textures, invariance, proto-objects, recognition).
+- Training and evaluation entry points live in `src/brain_project/train/` and `src/brain_project/eval/`.
+- Shared helpers are in `src/brain_project/utils/`.
+- Local datasets live in `data/` (e.g., CIFAR downloads), and experiment artifacts/checkpoints go in `runs/`.
+- Exploratory work belongs in `notebooks/`. The `scripts/` directory is currently empty.
+
+## Build, Test, and Development Commands
+There is no build system or task runner configured; run modules directly with Python and the `src/` layout on `PYTHONPATH`.
+- `PYTHONPATH=src python -m brain_project.train.train_m1` runs the M1 perception sanity check and downloads CIFAR-10 into `data/`.
+- `PYTHONPATH=src python -m brain_project.train.train_m3` runs the M3 trainer.
+- `PYTHONPATH=src python -m brain_project.eval.linear_probe` launches the linear probe evaluation.
+
+## Coding Style & Naming Conventions
+- Python code uses 4-space indentation, type hints where helpful, and standard PEP 8 naming (snake_case for functions/variables, PascalCase for classes).
+- Keep module files in `snake_case.py` and package names in `snake_case/`.
+- No formatter or linter is configured in-repo; match the existing style in `src/brain_project/`.
+
+## Testing Guidelines
+- There is no `tests/` directory or test runner configured.
+- If you add tests, prefer `pytest` with files named `test_*.py` under a new `tests/` directory, and document how to run them.
+
+## Commit & Pull Request Guidelines
+- The Git history has no commits yet, so there is no established commit message convention. Use concise, imperative summaries (e.g., "Add M3 trainer").
+- For pull requests, include a short summary, note any dataset downloads or changes under `data/`, and avoid committing large artifacts from `runs/`.
+
+## Data & Artifact Hygiene
+- Treat `data/` and `runs/` as local, machine-specific outputs. If a file must be shared, document it explicitly and keep it minimal.
+
+
+
+================================================
+FILE: pyproject.toml
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/config.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/model.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/eval/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/eval/linear_probe.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/eval/metrics.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m1_perception/__init__.py
+================================================
+from .soft_regions import M1V1V2Perception, M1V1V2Out
+
+__all__ = ["M1PerceptionInherited", "M1Output"]
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m1_perception/backbone.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Tuple
+
+import torch
+import torch.nn as nn
+from torchvision import models
+
+
+@dataclass
+class BackboneOut:
+    feat: torch.Tensor          # (B, C, Hf, Wf)
+    stride: int                 # effective stride vs input (approx)
+    channels: int               # C
+
+
+class MobileNetV3SmallBackbone(nn.Module):
+    """
+    CPU-friendly pretrained visual front-end.
+    We use torchvision mobilenet_v3_small pretrained on ImageNet.
+
+    Output is a spatial feature map (B, C, Hf, Wf).
+    """
+    def __init__(self, pretrained: bool = True, freeze: bool = True):
+        super().__init__()
+
+        # Torchvision API differences across versions:
+        # - older: pretrained=True
+        # - newer: weights=...
+        try:
+            weights = models.MobileNet_V3_Small_Weights.DEFAULT if pretrained else None
+            net = models.mobilenet_v3_small(weights=weights)
+        except Exception:
+            net = models.mobilenet_v3_small(pretrained=pretrained)
+
+        self.features = net.features  # Sequential
+        self.out_channels = 576       # mobilenet_v3_small final feature channels (typical)
+
+        # Freeze by default (evolutionary prior)
+        if freeze:
+            for p in self.features.parameters():
+                p.requires_grad = False
+
+        # Put batchnorm etc. in eval mode if frozen (stability)
+        self._frozen = freeze
+        if freeze:
+            self.features.eval()
+
+    @torch.no_grad()
+    def forward_frozen(self, x: torch.Tensor) -> torch.Tensor:
+        return self.features(x)
+
+    def forward(self, x: torch.Tensor) -> BackboneOut:
+        if self._frozen:
+            with torch.no_grad():
+                feat = self.features(x)
+        else:
+            feat = self.features(x)
+
+        # For mobilenet_v3_small, stride is roughly 32 on typical configs.
+        # We keep it as metadata; exact stride depends on input size.
+        return BackboneOut(feat=feat, stride=32, channels=feat.shape[1])
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m1_perception/depth_midas.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional
+
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class DepthOut:
+    depth: torch.Tensor        # (B,1,H,W) normalized to [0,1]
+
+
+class MiDaSSmallDepth(torch.nn.Module):
+    """
+    MiDaS-small via torch.hub (intel-isl/MiDaS).
+    CPU-friendly if you keep resolution moderate.
+    """
+    def __init__(self, freeze: bool = True):
+        super().__init__()
+        self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS_small")
+        if freeze:
+            for p in self.model.parameters():
+                p.requires_grad = False
+            self.model.eval()
+        self._frozen = freeze
+
+        # MiDaS uses ImageNet-like normalization
+        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1))
+        self.register_buffer("std",  torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1))
+
+    def forward(self, x: torch.Tensor, work_res: int = 256) -> DepthOut:
+        """
+        x: (B,3,H,W) in [0,1]
+        work_res: internal resolution for MiDaS; keep small for CPU speed.
+        """
+        B, C, H, W = x.shape
+
+        # resize to work_res (keep aspect by stretching; OK for M1 prior)
+        x_in = F.interpolate(x, size=(work_res, work_res), mode="bilinear", align_corners=False)
+        x_in = (x_in - self.mean) / self.std
+
+        if self._frozen:
+            with torch.no_grad():
+                d = self.model(x_in)   # (B, work_res, work_res) or (B,1,*,*)
+        else:
+            d = self.model(x_in)
+
+        if d.dim() == 3:
+            d = d.unsqueeze(1)
+        elif d.dim() == 4 and d.shape[1] != 1:
+            # some variants output (B,C,H,W); reduce
+            d = d.mean(dim=1, keepdim=True)
+
+        # resize back
+        d = F.interpolate(d, size=(H, W), mode="bilinear", align_corners=False)
+
+        # normalize per-image to [0,1] (relative depth)
+        d_min = d.amin(dim=(2, 3), keepdim=True)
+        d_max = d.amax(dim=(2, 3), keepdim=True)
+        d = (d - d_min) / (d_max - d_min + 1e-6)
+
+        return DepthOut(depth=d.clamp(0.0, 1.0))
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m1_perception/soft_regions.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from .v1_gabor import v1_gabor_energy
+from .v2_grouping import v2_local_affinity
+from .depth_midas import MiDaSSmallDepth
+
+
+@dataclass
+class M1V1V2Out:
+    s1: torch.Tensor          # (B,K,H,W)
+    depth: torch.Tensor       # (B,1,H,W)
+    gabor_energy: torch.Tensor  # (B,1,H,W) energy summary
+    boundary: torch.Tensor    # (B,1,H,W)
+    feat_vec: torch.Tensor    # (B,F,H,W) features used for clustering
+
+
+def _soft_kmeans(
+    feat: torch.Tensor,
+    k: int,
+    iters: int = 10,
+    temp: float = 0.15,
+    seed: int = 123,
+) -> torch.Tensor:
+    """
+    feat: (B,F,H,W) -> returns soft assignments S: (B,K,H,W)
+    CPU-friendly, uses torch ops only.
+    """
+    torch.manual_seed(seed)
+    B, Fch, H, W = feat.shape
+    N = H * W
+
+    # flatten pixels
+    X = feat.view(B, Fch, N).transpose(1, 2).contiguous()  # (B,N,F)
+
+    # normalize features
+    X = X - X.mean(dim=1, keepdim=True)
+    X = X / (X.std(dim=1, keepdim=True).clamp_min(1e-6))
+
+    # init centroids by sampling pixels
+    idx = torch.randint(low=0, high=N, size=(B, k), device=X.device)
+    C = torch.gather(X, dim=1, index=idx.unsqueeze(-1).expand(B, k, Fch)).contiguous()  # (B,K,F)
+
+    for _ in range(iters):
+        # squared distances (B,N,K)
+        # d(x,c) = ||x||^2 + ||c||^2 - 2 x·c
+        x2 = (X * X).sum(dim=2, keepdim=True)          # (B,N,1)
+        c2 = (C * C).sum(dim=2).unsqueeze(1)           # (B,1,K)
+        xc = torch.bmm(X, C.transpose(1, 2))           # (B,N,K)
+        d2 = (x2 + c2 - 2.0 * xc).clamp_min(0.0)
+
+        # soft assignments
+        S = torch.softmax(-d2 / temp, dim=2)           # (B,N,K)
+
+        # update centroids
+        denom = S.sum(dim=1, keepdim=False).unsqueeze(-1).clamp_min(1e-6)  # (B,K,1)
+        C = torch.bmm(S.transpose(1, 2), X) / denom     # (B,K,F)
+
+    S_img = S.transpose(1, 2).contiguous().view(B, k, H, W)  # (B,K,H,W)
+    # ensure simplex
+    S_img = S_img / (S_img.sum(dim=1, keepdim=True).clamp_min(1e-6))
+    return S_img
+
+
+class M1V1V2Perception(nn.Module):
+    """
+    M1 = V1 (Gabor energy) + V2 (local affinities/boundaries) + Depth (MiDaS-small)
+         then soft-kmeans on a perceptual feature vector to produce soft regions S1.
+    """
+    def __init__(
+        self,
+        k_regions: int = 8,
+        use_depth: bool = True,
+        midas_work_res: int = 256,
+        kmeans_iters: int = 12,
+        kmeans_temp: float = 0.15,
+    ):
+        super().__init__()
+        self.k_regions = k_regions
+        self.use_depth = use_depth
+        self.midas_work_res = midas_work_res
+        self.kmeans_iters = kmeans_iters
+        self.kmeans_temp = kmeans_temp
+
+        self.depth_model = MiDaSSmallDepth(freeze=True) if use_depth else None
+
+    def forward(self, x: torch.Tensor) -> M1V1V2Out:
+        """
+        x: (B,3,H,W) in [0,1]
+        """
+        B, C, H, W = x.shape
+
+        # ---- Depth prior (MiDaS-small) ----
+        if self.use_depth:
+            depth = self.depth_model(x, work_res=self.midas_work_res).depth  # (B,1,H,W)
+        else:
+            depth = torch.zeros((B, 1, H, W), device=x.device, dtype=x.dtype)
+
+        # ---- V1: Gabor energy ----
+        v1 = v1_gabor_energy(x, orientations=8)
+        gabor_e = v1.energy_sum  # (B,1,H,W)
+
+        # ---- Feature vector for V2 affinity + clustering ----
+        # Use: RGB (3) + depth (1) + gabor energy (1)
+        feat_vec = torch.cat([x, depth, gabor_e], dim=1)  # (B,5,H,W)
+
+        # ---- V2: boundaries from affinities ----
+        v2 = v2_local_affinity(feat_vec, sigma=0.35)
+        boundary = v2.boundary  # (B,1,H,W)
+        boundary_diff = v2.boundary_diffused
+
+        # ---- Clustering features (add boundary as extra signal) ----
+        # boundary helps separate regions near edges
+        cluster_feat = torch.cat([feat_vec, boundary], dim=1)  # (B,6,H,W)
+
+        # ---- Soft k-means -> S1 ----
+        s1 = _soft_kmeans(
+            cluster_feat,
+            k=self.k_regions,
+            iters=self.kmeans_iters,
+            temp=self.kmeans_temp,
+        )
+
+        return M1V1V2Out(
+            s1=s1,
+            depth=depth,
+            gabor_energy=gabor_e,
+            boundary=boundary,
+            feat_vec=cluster_feat,
+        )
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m1_perception/v1_gabor.py
+================================================
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import List, Tuple
+
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class V1GaborOut:
+    energy: torch.Tensor          # (B, S*O, H, W) energy maps
+    energy_sum: torch.Tensor      # (B, 1, H, W)   summed energy
+    ori_map: torch.Tensor         # (B, 1, H, W)   dominant orientation index [0..O-1]
+
+
+def _make_gabor_kernel(
+    ksize: int,
+    sigma: float,
+    theta: float,
+    lambd: float,
+    gamma: float,
+    psi: float,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Return (real, imag) gabor kernels of shape (ksize, ksize)."""
+    assert ksize % 2 == 1, "ksize should be odd"
+    half = ksize // 2
+    ys, xs = torch.meshgrid(
+        torch.arange(-half, half + 1, device=device, dtype=dtype),
+        torch.arange(-half, half + 1, device=device, dtype=dtype),
+        indexing="ij",
+    )
+
+    # rotation
+    x_theta = xs * math.cos(theta) + ys * math.sin(theta)
+    y_theta = -xs * math.sin(theta) + ys * math.cos(theta)
+
+    gauss = torch.exp(-(x_theta**2 + (gamma**2) * (y_theta**2)) / (2.0 * sigma**2))
+    phase = (2.0 * math.pi * x_theta / lambd) + psi
+    real = gauss * torch.cos(phase)
+    imag = gauss * torch.sin(phase)
+
+    # zero-mean (helps)
+    real = real - real.mean()
+    imag = imag - imag.mean()
+
+    # normalize energy
+    real = real / (real.norm() + 1e-8)
+    imag = imag / (imag.norm() + 1e-8)
+
+    return real, imag
+
+
+def v1_gabor_energy(
+    x: torch.Tensor,
+    scales: List[Tuple[int, float, float]] = None,
+    orientations: int = 8,
+    gamma: float = 0.5,
+) -> V1GaborOut:
+    """
+    x: (B,3,H,W) in [0,1]
+    Output energy maps: (B, S*O, H, W) where S=len(scales), O=orientations.
+
+    scales: list of (ksize, sigma, lambd)
+    """
+    if scales is None:
+        # (ksize, sigma, wavelength). Small set for CPU.
+        scales = [
+            (15, 2.5, 6.0),
+            (21, 3.5, 9.0),
+        ]
+
+    device = x.device
+    dtype = x.dtype
+
+    # grayscale luminance (rough V1 input)
+    # (B,1,H,W)
+    lum = (0.2989 * x[:, 0:1] + 0.5870 * x[:, 1:2] + 0.1140 * x[:, 2:3]).clamp(0, 1)
+
+    kernels_real = []
+    kernels_imag = []
+
+    for (ksize, sigma, lambd) in scales:
+        for o in range(orientations):
+            theta = (math.pi * o) / orientations
+            real, imag = _make_gabor_kernel(
+                ksize=ksize,
+                sigma=sigma,
+                theta=theta,
+                lambd=lambd,
+                gamma=gamma,
+                psi=0.0,
+                device=device,
+                dtype=dtype,
+            )
+            kernels_real.append(real)
+            kernels_imag.append(imag)
+
+    # Stack into conv weights: (F,1,ks,ks)
+    # But kernels have varying ksize if scales differ -> we pad to max.
+    max_k = max(k.shape[0] for k in kernels_real)
+    def pad_to(k: torch.Tensor, K: int) -> torch.Tensor:
+        p = (K - k.shape[0]) // 2
+        if p == 0:
+            return k
+        return F.pad(k, (p, p, p, p), mode="constant", value=0.0)
+
+    w_r = torch.stack([pad_to(k, max_k) for k in kernels_real], dim=0).unsqueeze(1)
+    w_i = torch.stack([pad_to(k, max_k) for k in kernels_imag], dim=0).unsqueeze(1)
+
+    # Convolve
+    pad = max_k // 2
+    resp_r = F.conv2d(lum, w_r, padding=pad)  # (B, F, H, W)
+    resp_i = F.conv2d(lum, w_i, padding=pad)
+
+    energy = torch.sqrt(resp_r * resp_r + resp_i * resp_i + 1e-8)  # complex-cell energy
+
+    # Summed energy across filters
+    energy_sum = energy.mean(dim=1, keepdim=True)
+
+    # Dominant orientation map (ignore scale): reshape (B, S, O, H, W) -> sum over S
+    S = len(scales)
+    O = orientations
+    e_so = energy.view(energy.shape[0], S, O, energy.shape[2], energy.shape[3]).mean(dim=1)  # (B,O,H,W)
+    ori_idx = torch.argmax(e_so, dim=1, keepdim=True).to(torch.float32)  # store as float for easy viz
+
+    return V1GaborOut(energy=energy, energy_sum=energy_sum, ori_map=ori_idx)
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m1_perception/v2_grouping.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class V2AffinityOut:
+    w_right: torch.Tensor     # (B,1,H,W-1)
+    w_down: torch.Tensor      # (B,1,H-1,W)
+    boundary: torch.Tensor    # (B,1,H,W)
+    boundary_diffused: torch.Tensor  # (B,1,H,W)
+
+
+def anisotropic_diffusion(
+    u: torch.Tensor,
+    w_right: torch.Tensor,
+    w_down: torch.Tensor,
+    iters: int = 6,
+    alpha: float = 0.2,
+) -> torch.Tensor:
+    """
+    Edge-preserving diffusion guided by affinities.
+    u: (B,1,H,W)
+    """
+    B, _, H, W = u.shape
+    x = u.clone()
+
+    for _ in range(iters):
+        # right / left
+        diff_r = torch.zeros_like(x)
+        diff_l = torch.zeros_like(x)
+        diff_d = torch.zeros_like(x)
+        diff_u = torch.zeros_like(x)
+
+        diff_r[:, :, :, :-1] = w_right * (x[:, :, :, 1:] - x[:, :, :, :-1])
+        diff_l[:, :, :, 1:]  = w_right * (x[:, :, :, :-1] - x[:, :, :, 1:])
+
+        diff_d[:, :, :-1, :] = w_down * (x[:, :, 1:, :] - x[:, :, :-1, :])
+        diff_u[:, :, 1:, :]  = w_down * (x[:, :, :-1, :] - x[:, :, 1:, :])
+
+        x = x + alpha * (diff_r + diff_l + diff_d + diff_u)
+
+    return x
+
+
+def v2_local_affinity(
+    feat: torch.Tensor,
+    sigma: float = 0.35,
+    diffuse_iters: int = 6,
+    diffuse_alpha: float = 0.2,
+) -> V2AffinityOut:
+    """
+    V2 grouping with anisotropic diffusion for stability.
+    """
+    f = feat
+    f = f - f.mean(dim=(2, 3), keepdim=True)
+    f = f / (f.std(dim=(2, 3), keepdim=True).clamp_min(1e-6))
+
+    df_right = f[:, :, :, 1:] - f[:, :, :, :-1]
+    df_down  = f[:, :, 1:, :] - f[:, :, :-1, :]
+
+    d2_right = (df_right * df_right).mean(dim=1, keepdim=True)
+    d2_down  = (df_down  * df_down ).mean(dim=1, keepdim=True)
+
+    w_right = torch.exp(-d2_right / (2.0 * sigma * sigma))
+    w_down  = torch.exp(-d2_down  / (2.0 * sigma * sigma))
+
+    B, _, H, Wm1 = w_right.shape
+    _, _, Hm1, W = w_down.shape
+
+    boundary = torch.zeros((B, 1, H, W), device=f.device, dtype=f.dtype)
+
+    br = (1.0 - w_right)
+    bd = (1.0 - w_down)
+
+    boundary[:, :, :, :-1] += br
+    boundary[:, :, :, 1:]  += br
+    boundary[:, :, :-1, :] += bd
+    boundary[:, :, 1:, :]  += bd
+
+    boundary = (boundary / 4.0).clamp(0.0, 1.0)
+
+    # 🔑 NEW: diffusion
+    boundary_diffused = anisotropic_diffusion(
+        boundary,
+        w_right=w_right,
+        w_down=w_down,
+        iters=diffuse_iters,
+        alpha=diffuse_alpha,
+    )
+
+    return V2AffinityOut(
+        w_right=w_right,
+        w_down=w_down,
+        boundary=boundary,
+        boundary_diffused=boundary_diffused,
+    )
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m2_edges/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m2_edges/edges.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m2_grouping/__init__.py
+================================================
+from .end_stopping import EndStopping, EndStoppingOut
+from .cocircularity import CoCircularity, CoCircularityOut
+from .region_stabilization import stabilize_regions, RegionStabOut
+
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m2_grouping/cocircularity.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Tuple, List
+
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class CoCircularityOut:
+    ori: torch.Tensor        # (B,1,H,W) orientation in radians [0,pi)
+    cocirc: torch.Tensor     # (B,1,H,W) in [0,1]
+    completed: torch.Tensor  # (B,1,H,W) in [0,1]
+    edge_norm: torch.Tensor  # (B,1,H,W) normalized edge
+
+
+def _sobel(x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    kx = torch.tensor([[-1, 0, 1],
+                       [-2, 0, 2],
+                       [-1, 0, 1]], dtype=x.dtype, device=x.device).view(1, 1, 3, 3)
+    ky = torch.tensor([[-1, -2, -1],
+                       [ 0,  0,  0],
+                       [ 1,  2,  1]], dtype=x.dtype, device=x.device).view(1, 1, 3, 3)
+    gx = F.conv2d(x, kx, padding=1)
+    gy = F.conv2d(x, ky, padding=1)
+    return gx, gy
+
+
+def _roll_zeros(x: torch.Tensor, dy: int, dx: int) -> torch.Tensor:
+    B, C, H, W = x.shape
+    y = torch.zeros_like(x)
+
+    y0_src = max(0, -dy); y1_src = min(H, H - dy)
+    x0_src = max(0, -dx); x1_src = min(W, W - dx)
+
+    y0_dst = max(0, dy);  y1_dst = min(H, H + dy)
+    x0_dst = max(0, dx);  x1_dst = min(W, W + dx)
+
+    if (y1_src > y0_src) and (x1_src > x0_src):
+        y[:, :, y0_dst:y1_dst, x0_dst:x1_dst] = x[:, :, y0_src:y1_src, x0_src:x1_src]
+    return y
+
+
+def _normalize01_per_image(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    B = x.shape[0]
+    xf = x.view(B, -1)
+    lo = xf.quantile(0.02, dim=1, keepdim=True)
+    hi = xf.quantile(0.98, dim=1, keepdim=True)
+    y = (xf - lo) / (hi - lo + eps)
+    return y.clamp(0.0, 1.0).view_as(x)
+
+
+def _wrap_pi(theta: torch.Tensor) -> torch.Tensor:
+    # wrap angle to [0, pi)
+    return theta % torch.pi
+
+
+def _ang_diff_pi(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    # minimal angular difference for angles modulo pi (orientation, not direction)
+    d = torch.abs(a - b)
+    return torch.minimum(d, torch.pi - d)
+
+
+class CoCircularity:
+    """
+    M2.2 Co-circularity + contour completion (CPU-friendly).
+    - Estimate local orientation from gradients of edge map.
+    - Compute orientation-consistent affinities to neighbors (8 dirs).
+    - Build cocircular score and run few steps of oriented diffusion along tangents.
+    """
+
+    def __init__(
+        self,
+        sigma_theta: float = 0.35,  # ~ 20 degrees
+        sigma_dist: float = 1.25,
+        iters: int = 8,
+        alpha: float = 0.20,
+        eps: float = 1e-6,
+    ):
+        self.sigma_theta = sigma_theta
+        self.sigma_dist = sigma_dist
+        self.iters = iters
+        self.alpha = alpha
+        self.eps = eps
+
+        # 8-neighborhood
+        self.dirs: List[Tuple[int, int]] = [
+            (0, 1),   (-1, 1),  (-1, 0), (-1, -1),
+            (0, -1),  (1, -1),  (1, 0),  (1, 1),
+        ]
+        self.dist = torch.tensor([1.0, 1.4142, 1.0, 1.4142, 1.0, 1.4142, 1.0, 1.4142])
+
+    @torch.no_grad()
+    def __call__(self, edge: torch.Tensor) -> CoCircularityOut:
+        assert edge.ndim == 4 and edge.shape[1] == 1, "edge must be (B,1,H,W)"
+        x = _normalize01_per_image(edge, eps=self.eps)
+
+        # orientation: tangent direction of contours
+        gx, gy = _sobel(x)
+        # gradient angle gives across-edge direction; tangent is +90 degrees
+        theta_g = torch.atan2(gy, gx)                 # [-pi, pi]
+        theta_t = _wrap_pi(theta_g + torch.pi / 2.0)  # [0, pi)
+
+        # neighbor affinities based on:
+        # - edge strength (both points)
+        # - orientation similarity (co-linearity / co-circularity proxy)
+        # - distance penalty
+        B, _, H, W = x.shape
+        cocirc_acc = torch.zeros_like(x)
+
+        # We'll also compute directional weights for diffusion
+        w_list = []
+
+        for idx, (dy, dx) in enumerate(self.dirs):
+            xn = _roll_zeros(x, dy, dx)
+            tn = _roll_zeros(theta_t, dy, dx)
+
+            # orientation compatibility
+            dth = _ang_diff_pi(theta_t, tn)
+            w_theta = torch.exp(-(dth * dth) / (2.0 * self.sigma_theta * self.sigma_theta))
+
+            # distance penalty
+            dist = self.dist[idx].to(x.device, x.dtype)
+            w_dist = torch.exp(-(dist * dist) / (2.0 * self.sigma_dist * self.sigma_dist))
+
+            # strength gate: both must be edges-ish
+            w_edge = (x * xn).clamp(0.0, 1.0)
+
+            w = (w_theta * w_dist) * w_edge
+            w_list.append(w)
+
+            # cocircular score: sum of consistent neighbors
+            cocirc_acc = cocirc_acc + w
+
+        # Normalize cocircular score to [0,1]
+        cocirc = (cocirc_acc / (cocirc_acc.max().clamp_min(self.eps))).clamp(0.0, 1.0)
+
+        # Contour completion via oriented diffusion:
+        # propagate edge strength along orientation-consistent connections.
+        u = x.clone()
+        for _ in range(self.iters):
+            delta = torch.zeros_like(u)
+            for (dy, dx), w in zip(self.dirs, w_list):
+                un = _roll_zeros(u, dy, dx)
+                delta = delta + w * (un - u)
+            u = (u + self.alpha * delta).clamp(0.0, 1.0)
+
+        completed = u
+
+        return CoCircularityOut(
+            ori=theta_t,
+            cocirc=cocirc,
+            completed=completed,
+            edge_norm=x,
+        )
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m2_grouping/end_stopping.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Tuple, Optional, List
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+@dataclass
+class EndStoppingOut:
+    end_map: torch.Tensor      # (B,1,H,W) in [0,1]
+    ori_bins: torch.Tensor     # (B,1,H,W) int64 in [0..n_bins-1]
+    edge_norm: torch.Tensor    # (B,1,H,W) normalized edge strength
+
+
+def _sobel(x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    x: (B,1,H,W)
+    returns gx, gy (B,1,H,W)
+    """
+    kx = torch.tensor([[-1, 0, 1],
+                       [-2, 0, 2],
+                       [-1, 0, 1]], dtype=x.dtype, device=x.device).view(1, 1, 3, 3)
+    ky = torch.tensor([[-1, -2, -1],
+                       [ 0,  0,  0],
+                       [ 1,  2,  1]], dtype=x.dtype, device=x.device).view(1, 1, 3, 3)
+
+    gx = F.conv2d(x, kx, padding=1)
+    gy = F.conv2d(x, ky, padding=1)
+    return gx, gy
+
+
+def _roll_zeros(x: torch.Tensor, dy: int, dx: int) -> torch.Tensor:
+    """
+    torch.roll but with zero padding instead of wrap-around.
+    x: (B,1,H,W)
+    """
+    B, C, H, W = x.shape
+    y = torch.zeros_like(x)
+
+    y0_src = max(0, -dy)
+    y1_src = min(H, H - dy)   # exclusive
+    x0_src = max(0, -dx)
+    x1_src = min(W, W - dx)
+
+    y0_dst = max(0, dy)
+    y1_dst = min(H, H + dy)
+    x0_dst = max(0, dx)
+    x1_dst = min(W, W + dx)
+
+    if (y1_src > y0_src) and (x1_src > x0_src):
+        y[:, :, y0_dst:y1_dst, x0_dst:x1_dst] = x[:, :, y0_src:y1_src, x0_src:x1_src]
+    return y
+
+
+def _quantize_orientation(gx: torch.Tensor, gy: torch.Tensor, n_bins: int = 8) -> torch.Tensor:
+    """
+    Quantize angle of gradient into n_bins.
+    gx, gy: (B,1,H,W)
+    returns bins: int64 (B,1,H,W)
+    """
+    # angle in [-pi, pi]
+    ang = torch.atan2(gy, gx)  # (B,1,H,W)
+    # map to [0, 2pi)
+    ang = ang % (2.0 * torch.pi)
+    # bin
+    bins = torch.floor(ang / (2.0 * torch.pi / n_bins)).to(torch.int64)
+    bins = torch.clamp(bins, 0, n_bins - 1)
+    return bins
+
+
+class EndStopping(nn.Module):
+    """
+    M2.1 End-stopping operator:
+    - input: edge map (V2 boundary diffused) (B,1,H,W)
+    - output: end_map (B,1,H,W) where high => likely end of a contour segment.
+
+    CPU-friendly: uses only conv2d + shifts.
+    """
+
+    def __init__(
+        self,
+        n_bins: int = 8,
+        radius: int = 6,
+        edge_smooth: int = 0,   # optional avgpool smoothing on edge map (0 disables)
+        eps: float = 1e-6,
+    ):
+        super().__init__()
+        assert n_bins in (4, 8, 16)
+        self.n_bins = n_bins
+        self.radius = radius
+        self.edge_smooth = edge_smooth
+        self.eps = eps
+
+        # Discrete direction offsets for bins (approx. unit steps)
+        # These directions represent the "tangent" direction along the contour.
+        # For simplicity, we use 8-neighborhood directions.
+        # bins: 0..7 correspond to angles 0,45,90,...
+        self._dirs_8: List[Tuple[int, int]] = [
+            (0, 1),    # 0: right
+            (-1, 1),   # 1: up-right
+            (-1, 0),   # 2: up
+            (-1, -1),  # 3: up-left
+            (0, -1),   # 4: left
+            (1, -1),   # 5: down-left
+            (1, 0),    # 6: down
+            (1, 1),    # 7: down-right
+        ]
+
+    @torch.no_grad()
+    def forward(self, edge: torch.Tensor) -> EndStoppingOut:
+        """
+        edge: (B,1,H,W) raw boundary strength (any range)
+        """
+        assert edge.ndim == 4 and edge.shape[1] == 1, "edge must be (B,1,H,W)"
+        x = edge
+
+        # Normalize edge to [0,1] per-image (robust for real images)
+        B = x.shape[0]
+        x_flat = x.view(B, -1)
+        lo = x_flat.quantile(0.02, dim=1, keepdim=True)
+        hi = x_flat.quantile(0.98, dim=1, keepdim=True)
+        x_norm = (x_flat - lo) / (hi - lo + self.eps)
+        x_norm = x_norm.clamp(0.0, 1.0).view_as(x)
+
+        if self.edge_smooth and self.edge_smooth > 0:
+            k = self.edge_smooth
+            x_norm = F.avg_pool2d(x_norm, kernel_size=k, stride=1, padding=k // 2)
+
+        # Orientation from Sobel of edge map (simple and good enough for M2.1)
+        gx, gy = _sobel(x_norm)
+        ori_bins = _quantize_orientation(gx, gy, n_bins=self.n_bins)  # (B,1,H,W)
+
+        # We want direction ALONG the contour, not across it.
+        # Gradient points across edges; tangent is rotated by +90°.
+        # So we shift bins by n_bins/4 (i.e., +90 degrees).
+        rot = self.n_bins // 4
+        tan_bins = (ori_bins + rot) % self.n_bins  # (B,1,H,W)
+
+        # Forward/backward continuation strength along tangent direction
+        # For each pixel, look ahead/behind up to radius and take max edge strength.
+        fwd = torch.zeros_like(x_norm)
+        bwd = torch.zeros_like(x_norm)
+
+        # For n_bins != 8, we still approximate using 8 directions by mapping.
+        # If n_bins=4: map to 0,2,4,6
+        # If n_bins=16: still mapped to nearest among 8 directions (coarser).
+        def bin_to_dir(bin_id: int) -> Tuple[int, int]:
+            if self.n_bins == 8:
+                return self._dirs_8[bin_id]
+            if self.n_bins == 4:
+                return self._dirs_8[(bin_id * 2) % 8]
+            # n_bins == 16: map to 8 by /2
+            return self._dirs_8[(bin_id // 2) % 8]
+
+        # Precompute shifted edge maps per direction and distance to avoid repeated work
+        # But we need per-pixel direction choice. We'll build per-direction stacks.
+        dir_shifts = []
+        for d in range(8):
+            dy, dx = self._dirs_8[d]
+            # stack distances 1..radius (max pooling over distances)
+            shifted_max_f = torch.zeros_like(x_norm)
+            shifted_max_b = torch.zeros_like(x_norm)
+            for r in range(1, self.radius + 1):
+                shifted_max_f = torch.maximum(shifted_max_f, _roll_zeros(x_norm, dy * r, dx * r))
+                shifted_max_b = torch.maximum(shifted_max_b, _roll_zeros(x_norm, -dy * r, -dx * r))
+            dir_shifts.append((shifted_max_f, shifted_max_b))
+
+        # Select fwd/bwd per pixel based on tan_bins
+        # Build masks per dir
+        if self.n_bins == 8:
+            bins8 = tan_bins
+        elif self.n_bins == 4:
+            bins8 = (tan_bins * 2) % 8
+        else:  # 16
+            bins8 = (tan_bins // 2) % 8
+
+        for d in range(8):
+            mask = (bins8 == d).to(x_norm.dtype)  # (B,1,H,W)
+            f_d, b_d = dir_shifts[d]
+            fwd = fwd + mask * f_d
+            bwd = bwd + mask * b_d
+
+        # Endness: edge is strong, but continuity is asymmetric.
+        # If both sides continue strongly => middle of a long segment => endness low.
+        # If one side weak and other strong => endness high.
+        min_fb = torch.minimum(fwd, bwd)
+        max_fb = torch.maximum(fwd, bwd)
+
+        # ratio close to 1 => symmetric continuation; ratio small => one-sided => likely end
+        ratio = min_fb / (max_fb + self.eps)
+
+        # end_map emphasizes strong edge points with low symmetry
+        end_map = x_norm * (1.0 - ratio)
+        end_map = end_map.clamp(0.0, 1.0)
+
+        return EndStoppingOut(
+            end_map=end_map,
+            ori_bins=bins8.to(torch.int64),
+            edge_norm=x_norm,
+        )
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m2_grouping/region_stabilization.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class RegionStabOut:
+    s2: torch.Tensor          # (B,K,H,W) probabilities
+    s2_logits: torch.Tensor   # (B,K,H,W) logits after diffusion
+    barrier: torch.Tensor     # (B,1,H,W) used barrier map in [0,1]
+
+
+def _roll_zeros_ch(x: torch.Tensor, dy: int, dx: int) -> torch.Tensor:
+    """
+    Zero-padded shift (no wrap-around).
+    x: (B,C,H,W)
+    """
+    B, C, H, W = x.shape
+    y = torch.zeros_like(x)
+
+    y0_src = max(0, -dy); y1_src = min(H, H - dy)
+    x0_src = max(0, -dx); x1_src = min(W, W - dx)
+
+    y0_dst = max(0, dy);  y1_dst = min(H, H + dy)
+    x0_dst = max(0, dx);  x1_dst = min(W, W + dx)
+
+    if (y1_src > y0_src) and (x1_src > x0_src):
+        y[:, :, y0_dst:y1_dst, x0_dst:x1_dst] = x[:, :, y0_src:y1_src, x0_src:x1_src]
+    return y
+
+
+def _normalize01_per_image(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    """
+    x: (B,1,H,W) -> per-image robust normalization to [0,1]
+    """
+    B = x.shape[0]
+    xf = x.view(B, -1)
+    lo = xf.quantile(0.02, dim=1, keepdim=True)
+    hi = xf.quantile(0.98, dim=1, keepdim=True)
+    y = (xf - lo) / (hi - lo + eps)
+    return y.clamp(0.0, 1.0).view_as(x)
+
+
+@torch.no_grad()
+def stabilize_regions(
+    s1: torch.Tensor,
+    barrier_m1: torch.Tensor,
+    completed_m2: Optional[torch.Tensor] = None,
+    depth: Optional[torch.Tensor] = None,
+    iters: int = 10,
+    alpha: float = 0.35,
+    beta_barrier: float = 6.0,
+    beta_depth: float = 2.0,
+    eps: float = 1e-6,
+) -> RegionStabOut:
+    """
+    Diffuse logits of S1 under edge barriers to get S2.
+
+    s1: (B,K,H,W) softmax probs
+    barrier_m1: (B,1,H,W) boundary map (already diffused) any range
+    completed_m2: (B,1,H,W) completed contour map any range (optional)
+    depth: (B,1,H,W) normalized depth in [0,1] (optional)
+
+    returns s2 (B,K,H,W).
+    """
+    assert s1.ndim == 4, "s1 must be (B,K,H,W)"
+    assert barrier_m1.ndim == 4 and barrier_m1.shape[1] == 1
+
+    B, K, H, W = s1.shape
+
+    # build barrier = combine M1 boundary + M2 completed contours (strong barriers)
+    b1 = _normalize01_per_image(barrier_m1, eps=eps)
+
+    if completed_m2 is not None:
+        assert completed_m2.ndim == 4 and completed_m2.shape[1] == 1
+        c2 = _normalize01_per_image(completed_m2, eps=eps)
+        barrier = torch.maximum(b1, c2)   # strongest wins
+    else:
+        barrier = b1
+
+    # Convert probs to logits for stable diffusion in log-space-ish
+    s1 = s1.clamp(eps, 1.0)
+    logits = torch.log(s1)  # (B,K,H,W)
+
+    # Depth gate
+    if depth is not None:
+        assert depth.ndim == 4 and depth.shape[1] == 1
+        d = depth.clamp(0.0, 1.0)
+    else:
+        d = None
+
+    # 4-neighborhood (cheaper and stable)
+    dirs: Tuple[Tuple[int, int], ...] = ((0, 1), (0, -1), (1, 0), (-1, 0))
+
+    # Precompute barrier weights to neighbors: w = exp(-beta * barrier_between)
+    # barrier_between approximated by max(barrier[p], barrier[q])
+    def neighbor_weight(dy: int, dx: int) -> torch.Tensor:
+        b_n = _roll_zeros_ch(barrier, dy, dx)
+        b_between = torch.maximum(barrier, b_n)  # (B,1,H,W)
+        w = torch.exp(-beta_barrier * b_between).clamp(0.0, 1.0)  # (B,1,H,W)
+
+        if d is not None:
+            d_n = _roll_zeros_ch(d, dy, dx)
+            dd = torch.abs(d - d_n)
+            w_d = torch.exp(-beta_depth * dd).clamp(0.0, 1.0)
+            w = w * w_d
+
+        return w  # (B,1,H,W)
+
+    weights = [neighbor_weight(dy, dx) for dy, dx in dirs]
+
+    # Iterative anisotropic diffusion on logits
+    for _ in range(iters):
+        delta = torch.zeros_like(logits)
+        wsum = torch.zeros((B, 1, H, W), device=logits.device, dtype=logits.dtype)
+
+        for (dy, dx), w in zip(dirs, weights):
+            ln = _roll_zeros_ch(logits, dy, dx)  # (B,K,H,W)
+            delta = delta + (w * (ln - logits))
+            wsum = wsum + w
+
+        # Normalize by total weight to prevent oversmoothing variation across pixels
+        logits = logits + alpha * (delta / (wsum + eps))
+
+    # Back to probabilities
+    s2 = torch.softmax(logits, dim=1)
+
+    return RegionStabOut(
+        s2=s2,
+        s2_logits=logits,
+        barrier=barrier,
+    )
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_invariance/__init__.py
+================================================
+from .m3_refiner import M3Refiner
+from .m3_consistency import consistency_loss
+
+# Slots
+from .geodesic_slots import geodesic_em_slots
+
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_invariance/augment.py
+================================================
+import torch
+import math
+import random
+import torchvision.transforms.functional as TF
+
+
+def random_affine_params(max_rot=8, max_trans=0.05, max_scale=0.05):
+    rot = random.uniform(-max_rot, max_rot)
+    tx = random.uniform(-max_trans, max_trans)
+    ty = random.uniform(-max_trans, max_trans)
+    sc = 1.0 + random.uniform(-max_scale, max_scale)
+    return rot, tx, ty, sc
+
+
+def affine_matrix(rot_deg, tx, ty, scale):
+    th = math.radians(rot_deg)
+    c, s = math.cos(th), math.sin(th)
+
+    A = torch.tensor([
+        [ scale*c, -scale*s, tx ],
+        [ scale*s,  scale*c, ty ]
+    ], dtype=torch.float32)
+
+    return A
+
+
+def apply_affine(x, A):
+    """
+    x: (B,3,H,W)
+    A: (2,3)
+    """
+    B, C, H, W = x.shape
+    A = A.unsqueeze(0).to(x.device)
+
+    grid = torch.nn.functional.affine_grid(A, size=x.size(), align_corners=False)
+    y = torch.nn.functional.grid_sample(x, grid, align_corners=False)
+    return y, grid
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_invariance/geodesic_slots.py
+================================================
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Optional, Tuple
+import heapq
+
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class GeoSlotsOut:
+    masks: torch.Tensor      # (B,S,H,W) soft masks
+    labels: torch.Tensor     # (B,H,W) hard labels
+    protos: torch.Tensor     # (B,S,F)
+    dist: torch.Tensor       # (B,S,H,W) geodesic distances
+
+
+def _norm01(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    mn = x.amin(dim=(-2, -1), keepdim=True)
+    mx = x.amax(dim=(-2, -1), keepdim=True)
+    return (x - mn) / (mx - mn + eps)
+
+
+def _coords(B: int, H: int, W: int, device, dtype):
+    yy, xx = torch.meshgrid(
+        torch.linspace(-1.0, 1.0, H, device=device, dtype=dtype),
+        torch.linspace(-1.0, 1.0, W, device=device, dtype=dtype),
+        indexing="ij",
+    )
+    return torch.stack([xx, yy], dim=0).unsqueeze(0).repeat(B, 1, 1, 1)  # (B,2,H,W)
+
+
+def build_pixel_features(
+    s2: torch.Tensor,                       # (B,K,H,W)
+    add_coords: bool = True,
+    coord_scale: float = 0.35,
+) -> torch.Tensor:
+    B, K, H, W = s2.shape
+    f = s2
+    if add_coords:
+        c = _coords(B, H, W, s2.device, s2.dtype) * coord_scale
+        f = torch.cat([f, c], dim=1)
+    return f  # (B,F,H,W)
+
+
+def pick_seeds_from_s2(
+    s2: torch.Tensor,
+    num_slots: int,
+    min_sep: int = 10,
+) -> torch.Tensor:
+    """
+    Pick seeds as argmax peaks from different channels, then fall back to random.
+    Returns: (B,S,2) integer (y,x)
+    """
+    B, K, H, W = s2.shape
+    seeds = []
+    for b in range(B):
+        chosen = []
+        # try per-channel peaks
+        for k in range(min(K, num_slots)):
+            idx = torch.argmax(s2[b, k]).item()
+            y = idx // W
+            x = idx % W
+            ok = True
+            for (yy, xx) in chosen:
+                if (yy - y) * (yy - y) + (xx - x) * (xx - x) < (min_sep * min_sep):
+                    ok = False
+                    break
+            if ok:
+                chosen.append((y, x))
+            if len(chosen) >= num_slots:
+                break
+
+        # fill remaining randomly
+        while len(chosen) < num_slots:
+            y = torch.randint(0, H, (1,)).item()
+            x = torch.randint(0, W, (1,)).item()
+            chosen.append((y, x))
+
+        seeds.append(chosen)
+
+    return torch.tensor(seeds, dtype=torch.long, device=s2.device)  # (B,S,2)
+
+
+def _geodesic_multisource_dijkstra(
+    step_cost: torch.Tensor,   # (H,W) >= 0
+    seeds_yx: torch.Tensor,    # (S,2) long
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Multi-source Dijkstra on 4-neighborhood.
+    Returns:
+      dist: (S,H,W) distances from each seed (computed efficiently as label-distance by running one multi-label Dijkstra)
+      labels: (H,W) winner label (argmin)
+    Implementation detail:
+      We compute best distance + label in one pass (multi-label), then reconstruct per-slot dist approximately:
+      - exact per-slot dist would require S runs.
+      - Here, for slot-soft masks, we mainly need *relative* distances. We'll also output a "dist_to_winner" map and
+        a "dist_per_slot" coarse approximation using winner distance + feature distance later.
+    """
+    H, W = step_cost.shape
+    inf = 1e9
+
+    best = torch.full((H, W), inf, dtype=torch.float32)
+    lab = torch.full((H, W), -1, dtype=torch.int64)
+
+    # heap entries: (d, y, x, label)
+    heap = []
+    for s, (y, x) in enumerate(seeds_yx.tolist()):
+        best[y, x] = 0.0
+        lab[y, x] = s
+        heapq.heappush(heap, (0.0, y, x, s))
+
+    # neighbors
+    nbrs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+    while heap:
+        d, y, x, s = heapq.heappop(heap)
+        if d != float(best[y, x]) or s != int(lab[y, x]):
+            continue
+        for dy, dx in nbrs:
+            yy = y + dy
+            xx = x + dx
+            if yy < 0 or yy >= H or xx < 0 or xx >= W:
+                continue
+            nd = d + float(step_cost[yy, xx])
+            # relax if better
+            if nd < float(best[yy, xx]):
+                best[yy, xx] = nd
+                lab[yy, xx] = s
+                heapq.heappush(heap, (nd, yy, xx, s))
+
+    return best, lab
+
+
+def geodesic_em_slots(
+    s2: torch.Tensor,                    # (B,K,H,W)
+    barrier: torch.Tensor,               # (B,1,H,W) higher=more edge
+    num_slots: int = 6,
+    em_iters: int = 5,
+    tau: float = 0.25,                   # softness of slot masks from distances
+    add_coords: bool = True,
+    coord_scale: float = 0.35,
+    # costs
+    w_barrier: float = 3.0,              # barrier contribution to step cost
+    w_feat: float = 1.0,                 # feature mismatch contribution
+    # speed knobs
+    dijkstra_down: int = 1,              # 1=full res, 2=half res, etc.
+    seed_min_sep: int = 10,
+    eps: float = 1e-6,
+) -> GeoSlotsOut:
+    """
+    M3.4: Geodesic slots = region growth constrained by barrier (M2) + feature consistency (S2).
+    CPU-friendly on ~128x128; can downsample for speed.
+    """
+    assert s2.ndim == 4 and barrier.ndim == 4
+    B, K, H, W = s2.shape
+    device = s2.device
+
+    # build features
+    f = build_pixel_features(s2, add_coords=add_coords, coord_scale=coord_scale)  # (B,F,H,W)
+    B, Fch, H, W = f.shape
+
+    # normalize barrier to [0,1]
+    b = _norm01(barrier[:, :1])
+
+    # seeds
+    seeds = pick_seeds_from_s2(s2, num_slots=num_slots, min_sep=seed_min_sep)  # (B,S,2)
+
+    # initialize protos from seeds
+    protos = []
+    for bb in range(B):
+        pts = []
+        for s in range(num_slots):
+            y, x = seeds[bb, s]
+            pts.append(f[bb, :, y, x])
+        protos.append(torch.stack(pts, dim=0))
+    protos = torch.stack(protos, dim=0)  # (B,S,F)
+
+    # optional downsample for Dijkstra grid
+    if dijkstra_down > 1:
+        Hd = H // dijkstra_down
+        Wd = W // dijkstra_down
+        f_d = F.interpolate(f, size=(Hd, Wd), mode="bilinear", align_corners=False)
+        b_d = F.interpolate(b, size=(Hd, Wd), mode="bilinear", align_corners=False)
+    else:
+        Hd, Wd = H, W
+        f_d, b_d = f, b
+
+    # flatten features on dijkstra grid
+    # (B,F,Hd,Wd)
+
+    dist_all = torch.zeros((B, num_slots, Hd, Wd), dtype=torch.float32, device="cpu")
+    labels_all = torch.zeros((B, Hd, Wd), dtype=torch.int64, device="cpu")
+
+    for it in range(em_iters):
+        # --- E-step: build step cost grid and run multi-source Dijkstra per image ---
+        for bb in range(B):
+            # step cost starts from barrier
+            step = 1.0 + w_barrier * b_d[bb, 0].detach().cpu().float()  # (Hd,Wd)
+
+            # also add feature mismatch to *current best proto* locally (cheap approximation)
+            # compute per-slot feature distance, then take min (winner) to bias growth
+            fd = f_d[bb].detach().cpu().float()  # (F,Hd,Wd)
+            fd_hw = fd.view(Fch, -1).t().contiguous()  # (Hd*Wd,F)
+            p = protos[bb].detach().cpu().float()       # (S,F)
+            d_feat = ((fd_hw.unsqueeze(1) - p.unsqueeze(0)) ** 2).sum(-1)  # (HW,S)
+            dmin = d_feat.min(dim=1).values.view(Hd, Wd)  # (Hd,Wd)
+            step = step + w_feat * _norm01(dmin).cpu().float()
+
+            # seeds mapped to downsample grid
+            sd = seeds[bb].clone()
+            sd[:, 0] = torch.clamp(sd[:, 0] // dijkstra_down, 0, Hd - 1)
+            sd[:, 1] = torch.clamp(sd[:, 1] // dijkstra_down, 0, Wd - 1)
+
+            best, lab = _geodesic_multisource_dijkstra(step, sd.cpu())
+            labels_all[bb] = lab
+            # produce per-slot distance maps: approximate by best + per-slot feature distance (soft competition)
+            # This is a pragmatic compromise: exact S Dijkstra runs would be slower.
+            # It still enforces barriers strongly because "best" came from barrier-constrained propagation.
+            for s in range(num_slots):
+                # distance = best + feature distance to slot proto
+                ds = d_feat[:, s].view(Hd, Wd)
+                dist_all[bb, s] = best + 0.35 * _norm01(ds)
+
+        # --- soft masks from distances ---
+        dist_t = dist_all.to(device=device, dtype=torch.float32)  # back to torch device
+        # softmax over slots
+        masks_d = torch.softmax(-dist_t / max(tau, eps), dim=1)  # (B,S,Hd,Wd)
+
+        # --- M-step: update protos using soft masks ---
+        # upsample masks to full res if needed
+        if dijkstra_down > 1:
+            masks = F.interpolate(masks_d, size=(H, W), mode="bilinear", align_corners=False)
+        else:
+            masks = masks_d
+
+        # renormalize
+        masks = masks / (masks.sum(dim=1, keepdim=True) + eps)
+
+        # update protos
+        for bb in range(B):
+            for s in range(num_slots):
+                w = masks[bb, s:s+1]  # (1,H,W)
+                denom = w.sum() + eps
+                proto = (f[bb] * w).view(Fch, -1).sum(dim=1) / denom
+                protos[bb, s] = proto
+
+    # final outputs at full res
+    if dijkstra_down > 1:
+        dist_full = F.interpolate(dist_all.to(device=device), size=(H, W), mode="bilinear", align_corners=False)
+        masks_full = F.interpolate(masks_d, size=(H, W), mode="bilinear", align_corners=False)
+        labels_full = F.interpolate(labels_all.unsqueeze(1).float(), size=(H, W), mode="nearest").squeeze(1).long()
+    else:
+        dist_full = dist_all.to(device=device)
+        masks_full = masks_d
+        labels_full = labels_all.to(device=device)
+
+    masks_full = masks_full / (masks_full.sum(dim=1, keepdim=True) + eps)
+
+    return GeoSlotsOut(
+        masks=masks_full,
+        labels=labels_full,
+        protos=protos,
+        dist=dist_full,
+    )
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_invariance/m3_consistency.py
+================================================
+import torch
+import torch.nn.functional as F
+
+
+def sym_kl(p, q, eps=1e-6):
+    p = p.clamp(eps, 1)
+    q = q.clamp(eps, 1)
+    return (p * (p.log() - q.log())).mean() + \
+           (q * (q.log() - p.log())).mean()
+
+
+def consistency_loss(s2_a, s2_b_warp):
+    return sym_kl(s2_a, s2_b_warp)
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_invariance/m3_refiner.py
+================================================
+import torch
+import torch.nn as nn
+
+
+class M3Refiner(nn.Module):
+    """
+    Petit réseau qui apprend à stabiliser S2
+    """
+    def __init__(self, k=8):
+        super().__init__()
+
+        self.net = nn.Sequential(
+            nn.Conv2d(k, 32, 1),
+            nn.ReLU(),
+            nn.Conv2d(32, k, 1)
+        )
+
+    def forward(self, s2):
+        return torch.softmax(self.net(s2), dim=1)
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_invariance/slots_kmeans.py
+================================================
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Optional
+
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class SlotsOut:
+    masks: torch.Tensor     # (B,S,H,W)
+    protos: torch.Tensor    # (B,S,F)
+    recon: torch.Tensor     # (B,F,H,W)
+    weights: torch.Tensor   # (B,HW,S) soft assignments
+
+
+def _coords(B: int, H: int, W: int, device, dtype):
+    yy, xx = torch.meshgrid(
+        torch.linspace(-1.0, 1.0, H, device=device, dtype=dtype),
+        torch.linspace(-1.0, 1.0, W, device=device, dtype=dtype),
+        indexing="ij",
+    )
+    return torch.stack([xx, yy], dim=0).unsqueeze(0).repeat(B, 1, 1, 1)  # (B,2,H,W)
+
+
+def build_pixel_features(
+    s2: torch.Tensor,
+    add_coords: bool = True,
+    coord_scale: float = 0.35,
+) -> torch.Tensor:
+    """
+    s2: (B,K,H,W) probs
+    returns: f (B,F,H,W) where F = K (+2 coords)
+    """
+    B, K, H, W = s2.shape
+    f = s2
+    if add_coords:
+        c = _coords(B, H, W, s2.device, s2.dtype) * coord_scale
+        f = torch.cat([f, c], dim=1)
+    return f
+
+
+def init_protos_from_pixels(
+    f: torch.Tensor,
+    S: int,
+    seed: int = 0,
+) -> torch.Tensor:
+    torch.manual_seed(seed)
+    B, Fch, H, W = f.shape
+    HW = H * W
+    fp = f.view(B, Fch, HW).transpose(1, 2)  # (B,HW,F)
+    idx = torch.randint(0, HW, (B, S), device=f.device)
+    protos = torch.gather(fp, 1, idx.unsqueeze(-1).expand(B, S, Fch))  # (B,S,F)
+    return protos
+
+
+def _norm01(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    mn = x.amin(dim=(-2, -1), keepdim=True)
+    mx = x.amax(dim=(-2, -1), keepdim=True)
+    return (x - mn) / (mx - mn + eps)
+
+
+def edge_aware_diffuse(
+    masks: torch.Tensor,
+    barrier: torch.Tensor,
+    steps: int = 6,
+    alpha: float = 0.25,
+    beta: float = 12.0,
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    """
+    masks:   (B,S,H,W) in [0,1]
+    barrier: (B,1,H,W) higher = stronger edge barrier
+    Diffusion that smooths WITHIN regions and stops across strong edges.
+    """
+    # conductance: low at edges, high in smooth areas
+    b = _norm01(barrier)
+    c = torch.exp(-beta * b).clamp(0.0, 1.0)  # (B,1,H,W)
+
+    m = masks
+    for _ in range(steps):
+        # 4-neighborhood differences
+        up    = F.pad(m[:, :, :-1, :], (0, 0, 1, 0))
+        down  = F.pad(m[:, :, 1:,  :], (0, 0, 0, 1))
+        left  = F.pad(m[:, :, :, :-1], (1, 0, 0, 0))
+        right = F.pad(m[:, :, :, 1: ], (0, 1, 0, 0))
+
+        # conductance between pixels (use product to be conservative)
+        cup    = F.pad(c[:, :, :-1, :], (0, 0, 1, 0)) * c
+        cdown  = F.pad(c[:, :, 1:,  :], (0, 0, 0, 1)) * c
+        cleft  = F.pad(c[:, :, :, :-1], (1, 0, 0, 0)) * c
+        cright = F.pad(c[:, :, :, 1: ], (0, 1, 0, 0)) * c
+
+        # diffusion update (discrete anisotropic Laplacian)
+        lap = (
+            cup   * (up   - m) +
+            cdown * (down - m) +
+            cleft * (left - m) +
+            cright* (right- m)
+        )
+
+        m = (m + alpha * lap).clamp(0.0, 1.0)
+
+        # renormalize across slots (so each pixel distributes mass over slots)
+        m = m / (m.sum(dim=1, keepdim=True) + eps)
+
+    return m
+
+
+def soft_kmeans_slots_barrier(
+    s2: torch.Tensor,
+    barrier: Optional[torch.Tensor] = None,  # (B,1,H,W)
+    num_slots: int = 6,
+    iters: int = 10,
+    tau: float = 0.25,
+    add_coords: bool = True,
+    coord_scale: float = 0.35,
+    seed: int = 0,
+    # M3.3 params
+    diffuse_steps: int = 6,
+    diffuse_alpha: float = 0.25,
+    diffuse_beta: float = 12.0,
+    eps: float = 1e-6,
+) -> SlotsOut:
+    """
+    M3.3: Soft k-means + edge-aware diffusion using a barrier map.
+    """
+    assert s2.ndim == 4
+    B, K, H, W = s2.shape
+    device = s2.device
+
+    f = build_pixel_features(s2, add_coords=add_coords, coord_scale=coord_scale)  # (B,F,H,W)
+    B, Fch, H, W = f.shape
+    HW = H * W
+    fp = f.view(B, Fch, HW).transpose(1, 2).contiguous()  # (B,HW,F)
+
+    protos = init_protos_from_pixels(f, num_slots, seed=seed)  # (B,S,F)
+
+    if barrier is None:
+        barrier = torch.zeros((B, 1, H, W), device=device, dtype=s2.dtype)
+    else:
+        if barrier.ndim == 3:
+            barrier = barrier.unsqueeze(1)
+        barrier = barrier.to(device=device, dtype=s2.dtype)
+
+    for _ in range(iters):
+        # distances (B,HW,S)
+        dist = ((fp.unsqueeze(2) - protos.unsqueeze(1)) ** 2).sum(dim=-1)
+
+        w = torch.softmax(-dist / max(tau, eps), dim=-1)  # (B,HW,S)
+        masks = w.transpose(1, 2).view(B, num_slots, H, W)
+
+        # M3.3 key: barrier-constrained diffusion of masks
+        masks = edge_aware_diffuse(
+            masks, barrier,
+            steps=diffuse_steps,
+            alpha=diffuse_alpha,
+            beta=diffuse_beta,
+            eps=eps,
+        )
+
+        # back to weights
+        w = masks.view(B, num_slots, HW).transpose(1, 2).contiguous()  # (B,HW,S)
+
+        # update protos
+        denom = w.sum(dim=1, keepdim=True).transpose(1, 2)  # (B,S,1)
+        num = torch.bmm(w.transpose(1, 2), fp)              # (B,S,F)
+        protos = num / (denom + eps)
+
+    # final
+    dist = ((fp.unsqueeze(2) - protos.unsqueeze(1)) ** 2).sum(dim=-1)
+    w = torch.softmax(-dist / max(tau, eps), dim=-1)
+    masks = w.transpose(1, 2).view(B, num_slots, H, W)
+
+    masks = edge_aware_diffuse(
+        masks, barrier,
+        steps=diffuse_steps,
+        alpha=diffuse_alpha,
+        beta=diffuse_beta,
+        eps=eps,
+    )
+    w = masks.view(B, num_slots, HW).transpose(1, 2).contiguous()
+
+    recon_fp = torch.bmm(w, protos)  # (B,HW,F)
+    recon = recon_fp.transpose(1, 2).view(B, Fch, H, W)
+
+    return SlotsOut(masks=masks, protos=protos, recon=recon, weights=w)
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_invariance/warp.py
+================================================
+import torch
+
+
+def warp_inverse(tensor, grid):
+    """
+    tensor: (B,K,H,W)
+    grid: affine grid used to generate the view
+
+    Applies inverse warp using same grid.
+    """
+    return torch.nn.functional.grid_sample(
+        tensor, grid, align_corners=False
+    )
+
+
+
+
+================================================
+FILE: src/brain_project/modules/m3_textures/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m3_textures/textures.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m4_proto_objects/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m4_proto_objects/slots.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m5_recognition/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m5_recognition/experts.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/modules/m5_recognition/router.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/train/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/train/eval_m1_on_folder.py
+================================================
+from __future__ import annotations
+
+import os
+import glob
+import json
+from dataclasses import asdict
+from typing import List, Tuple
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from PIL import Image
+from tqdm import tqdm
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+from brain_project.utils.metrics_m1 import compute_m1_metrics
+
+
+def load_image(path: str, img_size: int) -> torch.Tensor:
+    """
+    Returns x: (1,3,H,W) float in [0,1]
+    """
+    im = Image.open(path).convert("RGB")
+    im = im.resize((img_size, img_size), resample=Image.BILINEAR)
+    x = torch.from_numpy(np.array(im)).float() / 255.0  # (H,W,3)
+    x = x.permute(2, 0, 1).unsqueeze(0).contiguous()    # (1,3,H,W)
+    return x
+
+
+def augment_light(x: torch.Tensor, seed: int = 123) -> torch.Tensor:
+    torch.manual_seed(seed)
+    B, C, H, W = x.shape
+
+    scale = float(torch.empty(1).uniform_(0.90, 1.10).item())
+    h2 = max(16, int(round(H * scale)))
+    w2 = max(16, int(round(W * scale)))
+    x2 = F.interpolate(x, size=(h2, w2), mode="bilinear", align_corners=False)
+    x2 = F.interpolate(x2, size=(H, W), mode="bilinear", align_corners=False)
+
+    brightness = float(torch.empty(1).uniform_(0.95, 1.05).item())
+    contrast = float(torch.empty(1).uniform_(0.95, 1.05).item())
+    mean = x2.mean(dim=(2, 3), keepdim=True)
+    x3 = (x2 - mean) * contrast + mean
+    x3 = (x3 * brightness).clamp(0.0, 1.0)
+
+    if float(torch.rand(1).item()) < 0.5:
+        x3 = torch.flip(x3, dims=[3])
+
+    return x3
+
+
+def save_panel(out_path: str, x: torch.Tensor, out) -> None:
+    """
+    x: (1,3,H,W), out: M1V1V2Out
+    """
+    img = x[0].permute(1, 2, 0).cpu().numpy()
+    depth = out.depth[0, 0].cpu().numpy()
+    boundary = out.boundary[0, 0].cpu().numpy()
+    s1 = out.s1[0].cpu()  # (K,H,W)
+    arg = torch.argmax(s1, dim=0).numpy()
+
+    K = s1.shape[0]
+    cols = 4
+    rows = int(np.ceil((K + 4) / cols))
+
+    plt.figure(figsize=(4 * cols, 4 * rows))
+
+    plt.subplot(rows, cols, 1)
+    plt.imshow(img)
+    plt.title("Original")
+    plt.axis("off")
+
+    plt.subplot(rows, cols, 2)
+    plt.imshow(depth, cmap="gray")
+    plt.title("MiDaS depth")
+    plt.axis("off")
+
+    plt.subplot(rows, cols, 3)
+    plt.imshow(boundary, cmap="gray")
+    plt.title("V2 boundary (diffused)")
+    plt.axis("off")
+
+    plt.subplot(rows, cols, 4)
+    plt.imshow(arg, cmap="tab10")
+    plt.title("S1 argmax")
+    plt.axis("off")
+
+    for k in range(K):
+        plt.subplot(rows, cols, 5 + k)
+        plt.imshow(s1[k].numpy(), cmap="gray")
+        plt.title(f"Region {k}")
+        plt.axis("off")
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+
+@torch.no_grad()
+def main():
+    in_dir = os.environ.get("M1_IN_DIR", "./data/real_images")
+    out_dir = os.environ.get("M1_OUT_DIR", "./runs/m1_real")
+    img_size = int(os.environ.get("M1_IMG_SIZE", "256"))
+    n_images = int(os.environ.get("M1_N", "50"))
+
+    k_regions = int(os.environ.get("M1_K", "8"))
+    midas_work_res = int(os.environ.get("M1_MIDAS_RES", "256"))
+
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(os.path.join(out_dir, "panels"), exist_ok=True)
+
+    exts = ("*.jpg", "*.jpeg", "*.png", "*.webp")
+    paths: List[str] = []
+    for e in exts:
+        paths.extend(glob.glob(os.path.join(in_dir, e)))
+    paths = sorted(paths)[:n_images]
+
+    if not paths:
+        raise SystemExit(f"No images found in {in_dir} (jpg/jpeg/png/webp).")
+
+    device = torch.device("cpu")
+
+    m1 = M1V1V2Perception(
+        k_regions=k_regions,
+        use_depth=True,
+        midas_work_res=midas_work_res,
+        kmeans_iters=12,
+        kmeans_temp=0.15,
+    ).to(device).eval()
+
+    per_image = []
+    for i, p in enumerate(tqdm(paths, desc="[M1 real]")):
+        x = load_image(p, img_size=img_size).to(device)
+
+        out = m1(x)
+        x_aug = augment_light(x, seed=1000 + i)
+        out_aug = m1(x_aug)
+
+        m = compute_m1_metrics(x=x, s1=out.s1, boundary=out.boundary, s1_aug=out_aug.s1)
+        rec = {
+            "path": p,
+            "metrics": asdict(m),
+        }
+        per_image.append(rec)
+
+        panel_path = os.path.join(out_dir, "panels", f"panel_{i:04d}.png")
+        save_panel(panel_path, x, out)
+
+    # summarize
+    def mean_std(key: str) -> Tuple[float, float]:
+        vals = [r["metrics"][key] for r in per_image]
+        a = np.array(vals, dtype=np.float64)
+        return float(a.mean()), float(a.std())
+
+    summary = {
+        "in_dir": in_dir,
+        "n_images": len(per_image),
+        "img_size": img_size,
+        "k_regions": k_regions,
+        "midas_work_res": midas_work_res,
+        "metrics_mean_std": {
+            "entropy_mean": list(mean_std("entropy_mean")),
+            "entropy_std": list(mean_std("entropy_std")),
+            "region_area_gini": list(mean_std("region_area_gini")),
+            "boundary_grad_corr": list(mean_std("boundary_grad_corr")),
+            "stability_kl": list(mean_std("stability_kl")),
+        },
+    }
+
+    with open(os.path.join(out_dir, "summary.json"), "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+
+    with open(os.path.join(out_dir, "per_image.jsonl"), "w", encoding="utf-8") as f:
+        for r in per_image:
+            f.write(json.dumps(r) + "\n")
+
+    print("\nSaved panels to:", os.path.join(out_dir, "panels"))
+    print("Saved summary to:", os.path.join(out_dir, "summary.json"))
+    print(json.dumps(summary["metrics_mean_std"], indent=2))
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/eval_m1_perceptual.py
+================================================
+from __future__ import annotations
+
+import os
+import json
+import math
+import random
+from dataclasses import asdict
+from typing import Dict, List, Tuple
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+
+from brain_project.data.loaders import LoaderSpec, build_dataset
+from brain_project.modules.m1_perception import M1V1V2Perception
+from brain_project.utils.metrics_m1 import compute_m1_metrics, M1Metrics
+
+
+def set_seed(seed: int = 123):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+def _augment_light(x: torch.Tensor, seed: int = 123) -> torch.Tensor:
+    """
+    Light augmentation for stability test.
+    x: (B,3,H,W) in [0,1]
+    """
+    set_seed(seed)
+    B, C, H, W = x.shape
+
+    # (1) slight resize jitter then back
+    scale = random.uniform(0.90, 1.10)
+    h2 = max(16, int(round(H * scale)))
+    w2 = max(16, int(round(W * scale)))
+    x2 = F.interpolate(x, size=(h2, w2), mode="bilinear", align_corners=False)
+    x2 = F.interpolate(x2, size=(H, W), mode="bilinear", align_corners=False)
+
+    # (2) mild brightness/contrast jitter
+    brightness = random.uniform(0.95, 1.05)
+    contrast = random.uniform(0.95, 1.05)
+    mean = x2.mean(dim=(2, 3), keepdim=True)
+    x3 = (x2 - mean) * contrast + mean
+    x3 = (x3 * brightness).clamp(0.0, 1.0)
+
+    # (3) occasional horizontal flip
+    if random.random() < 0.5:
+        x3 = torch.flip(x3, dims=[3])
+
+    return x3
+
+
+def _save_panel(
+    out_path: str,
+    img: np.ndarray,
+    depth: np.ndarray,
+    gabor: np.ndarray,
+    boundary: np.ndarray,
+    s1: torch.Tensor,
+):
+    """
+    Save a consistent panel for qualitative inspection.
+    s1: (K,H,W)
+    """
+    K, H, W = s1.shape
+    arg = torch.argmax(s1, dim=0).cpu().numpy()
+
+    cols = 4
+    rows = int(math.ceil((K + 5) / cols))
+    plt.figure(figsize=(4 * cols, 4 * rows))
+
+    # Original
+    plt.subplot(rows, cols, 1)
+    plt.imshow(img)
+    plt.title("Original")
+    plt.axis("off")
+
+    # Depth
+    plt.subplot(rows, cols, 2)
+    plt.imshow(depth, cmap="gray")
+    plt.title("MiDaS depth (norm)")
+    plt.axis("off")
+
+    # Gabor
+    plt.subplot(rows, cols, 3)
+    plt.imshow(gabor, cmap="gray")
+    plt.title("V1 Gabor energy")
+    plt.axis("off")
+
+    # Boundary
+    plt.subplot(rows, cols, 4)
+    plt.imshow(boundary, cmap="gray")
+    plt.title("V2 boundary strength")
+    plt.axis("off")
+
+    # Argmax
+    plt.subplot(rows, cols, 5)
+    plt.imshow(arg, cmap="tab10")
+    plt.title("S1 argmax (regions)")
+    plt.axis("off")
+
+    # Regions
+    for k in range(K):
+        plt.subplot(rows, cols, 6 + k)
+        plt.imshow(s1[k].cpu().numpy(), cmap="gray")
+        plt.title(f"Region {k}")
+        plt.axis("off")
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+
+@torch.no_grad()
+def eval_dataset(
+    name: str,
+    split: str,
+    n_images: int,
+    img_size: int,
+    k_regions: int,
+    out_root: str,
+    midas_work_res: int,
+):
+    device = torch.device("cpu")
+
+    ds = build_dataset(LoaderSpec(name=name, split=split, img_size=img_size))
+    n_images = min(n_images, len(ds))
+
+    out_dir = os.path.join(out_root, f"{name}_{split}")
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(os.path.join(out_dir, "panels"), exist_ok=True)
+
+    m1 = M1V1V2Perception(
+        k_regions=k_regions,
+        use_depth=True,
+        midas_work_res=midas_work_res,
+        kmeans_iters=12,
+        kmeans_temp=0.15,
+    ).to(device).eval()
+
+    metrics: List[M1Metrics] = []
+
+    for i in tqdm(range(n_images), desc=f"[M1 eval] {name}/{split}"):
+        x, _ = ds[i]
+        x = x.unsqueeze(0).to(device)  # (1,3,H,W)
+
+        out = m1(x)
+        s1 = out.s1
+        depth = out.depth
+        gabor = out.gabor_energy
+        boundary = out.boundary
+
+        # Aug stability
+        x_aug = _augment_light(x, seed=123 + i)
+        out_aug = m1(x_aug)
+        s1_aug = out_aug.s1
+
+        m = compute_m1_metrics(x=x, s1=s1, boundary=boundary, s1_aug=s1_aug)
+        metrics.append(m)
+
+        # Save a few qualitative panels
+        if i < 24:
+            img = x[0].permute(1, 2, 0).cpu().numpy()
+            panel_path = os.path.join(out_dir, "panels", f"panel_{i:04d}.png")
+            _save_panel(
+                panel_path,
+                img=img,
+                depth=depth[0, 0].cpu().numpy(),
+                gabor=gabor[0, 0].cpu().numpy(),
+                boundary=boundary[0, 0].cpu().numpy(),
+                s1=s1[0],
+            )
+
+    # Aggregate metrics
+    def mean_std(vals: List[float]) -> Tuple[float, float]:
+        a = np.array(vals, dtype=np.float64)
+        return float(a.mean()), float(a.std())
+
+    ent_m, ent_s = mean_std([m.entropy_mean for m in metrics])
+    entstd_m, entstd_s = mean_std([m.entropy_std for m in metrics])
+    gini_m, gini_s = mean_std([m.region_area_gini for m in metrics])
+    corr_m, corr_s = mean_std([m.boundary_grad_corr for m in metrics])
+    kl_m, kl_s = mean_std([m.stability_kl for m in metrics])
+
+    summary = {
+        "dataset": name,
+        "split": split,
+        "n_images": n_images,
+        "img_size": img_size,
+        "k_regions": k_regions,
+        "midas_work_res": midas_work_res,
+        "metrics_mean_std": {
+            "entropy_mean": [ent_m, ent_s],
+            "entropy_std": [entstd_m, entstd_s],
+            "region_area_gini": [gini_m, gini_s],
+            "boundary_grad_corr": [corr_m, corr_s],
+            "stability_kl": [kl_m, kl_s],
+        },
+    }
+
+    with open(os.path.join(out_dir, "summary.json"), "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+
+    # Also save per-image metrics
+    with open(os.path.join(out_dir, "metrics_per_image.jsonl"), "w", encoding="utf-8") as f:
+        for m in metrics:
+            f.write(json.dumps(asdict(m)) + "\n")
+
+    print(f"\nSaved results to: {out_dir}")
+    print(json.dumps(summary["metrics_mean_std"], indent=2))
+
+
+def main():
+    out_root = "./runs/m1_eval"
+    os.makedirs(out_root, exist_ok=True)
+
+    # Defaults: modest for CPU
+    n_images = 100
+    img_size = 160          # a bit higher than 128 for richer structure
+    k_regions = 8
+    midas_work_res = 256    # reduce to 192 if too slow
+
+    # CIFAR-100
+    eval_dataset(
+        name="cifar100",
+        split="train",
+        n_images=n_images,
+        img_size=img_size,
+        k_regions=k_regions,
+        out_root=out_root,
+        midas_work_res=midas_work_res,
+    )
+
+    # STL-10
+    eval_dataset(
+        name="stl10",
+        split="train",
+        n_images=n_images,
+        img_size=img_size,
+        k_regions=k_regions,
+        out_root=out_root,
+        midas_work_res=midas_work_res,
+    )
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/eval_m3.py
+================================================
+import torch
+import glob, os, numpy as np
+from PIL import Image
+
+from brain_project.modules.m3_invariance.m3_refiner import M3Refiner
+from brain_project.modules.m3_invariance.m3_consistency import consistency_loss
+from brain_project.modules.m3_invariance.augment import *
+from brain_project.modules.m3_invariance.warp import warp_inverse
+
+CACHE_DIR = "./runs/m3_cache"
+
+
+def main():
+
+    test_cache = f"{CACHE_DIR}/test.pt"
+    ckpt = "./runs/m3/refiner_last.pth"
+
+    print("\n=== M3 EVAL (FAST) ===")
+
+    if not os.path.exists(test_cache):
+        raise RuntimeError("Run train first to build cache")
+
+    S2 = torch.load(test_cache)
+
+    refiner = M3Refiner(k=8)
+    refiner.load_state_dict(torch.load(ckpt, map_location="cpu"))
+    refiner.eval()
+
+    losses = []
+
+    for i in range(len(S2)):
+
+        s2 = S2[i:i+1]
+
+        rot, tx, ty, sc = random_affine_params(
+            max_rot=10, max_trans=0.08, max_scale=0.08
+        )
+        A = affine_matrix(rot, tx, ty, sc)
+
+        grid = torch.nn.functional.affine_grid(
+            A.unsqueeze(0), s2.size(), align_corners=False
+        )
+
+        s2b = torch.nn.functional.grid_sample(
+            s2, grid, align_corners=False
+        )
+
+        s2a_r = refiner(s2)
+        s2b_r = refiner(s2b)
+
+        s2b_w = warp_inverse(s2b_r, grid)
+
+        loss = consistency_loss(s2a_r, s2b_w)
+        losses.append(loss.item())
+
+    print("Mean test loss:", np.mean(losses))
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/eval_m3_slots.py
+================================================
+import os
+import numpy as np
+import torch
+
+from brain_project.modules.m3_invariance.slots_kmeans import soft_kmeans_slots
+
+
+def slot_entropy(masks, eps=1e-6):
+    # masks: (B,S,H,W) in [0,1], sum over slots not necessarily 1
+    m = masks.clamp(eps, 1.0)
+    p = m / (m.sum(dim=1, keepdim=True) + eps)
+    ent = -(p * p.log()).sum(dim=1).mean().item()
+    return ent
+
+
+def mean_pairwise_iou(masks, thr=0.5, eps=1e-6):
+    # masks: (B,S,H,W)
+    B, S, H, W = masks.shape
+    mb = (masks > thr).float()
+    ious = []
+    for b in range(B):
+        for i in range(S):
+            for j in range(i + 1, S):
+                inter = (mb[b, i] * mb[b, j]).sum()
+                union = ((mb[b, i] + mb[b, j]) > 0).float().sum()
+                iou = (inter / (union + eps)).item()
+                ious.append(iou)
+    return float(np.mean(ious)) if ious else 0.0
+
+
+@torch.no_grad()
+def main():
+    cache = "./runs/m3_cache/test.pt"
+    if not os.path.exists(cache):
+        raise RuntimeError("Missing cache. Run train_m3 to build caches first.")
+
+    S2 = torch.load(cache)  # (N,K,H,W)
+    # take a small subset for speed
+    S2 = S2[:32]
+
+    slots = soft_kmeans_slots(S2, num_slots=6, iters=12, tau=0.25, add_coords=True)
+
+    ent = slot_entropy(slots.masks)
+    iou = mean_pairwise_iou(slots.masks, thr=0.5)
+
+    print("=== M3.2 Slots metrics ===")
+    print("entropy (higher=more spread):", ent)
+    print("pairwise IoU (lower=better diversity):", iou)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/train_m1.py
+================================================
+from __future__ import annotations
+
+import time
+import torch
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+
+from brain_project.modules.m1_perception import M1PerceptionInherited
+
+
+def main():
+    device = torch.device("cpu")
+
+    # Small input for CPU speed
+    tf = transforms.Compose([
+        transforms.Resize((128, 128)),
+        transforms.ToTensor(),
+    ])
+    ds = datasets.CIFAR10("./data", train=True, download=True, transform=tf)
+    dl = DataLoader(ds, batch_size=16, shuffle=True, num_workers=2)
+
+    m1 = M1PerceptionInherited(k_regions=8, pretrained=True, freeze_backbone=True).to(device)
+    m1.eval()
+
+    x, _ = next(iter(dl))
+    x = x.to(device)
+
+    t0 = time.time()
+    with torch.no_grad():
+        out = m1(x)
+    dt = time.time() - t0
+
+    print("M1 output:")
+    print("  s1:", tuple(out.s1.shape), "sum_k:", out.s1.sum(dim=1).mean().item())
+    print("  feat:", tuple(out.feat.shape))
+    print("  logits:", tuple(out.logits.shape))
+    print(f"  forward time (batch=16): {dt:.3f}s")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/train_m3.py
+================================================
+import torch
+import torch.optim as optim
+import os, time, glob
+import numpy as np
+from PIL import Image
+
+from brain_project.modules.m3_invariance.m3_refiner import M3Refiner
+from brain_project.modules.m3_invariance.m3_consistency import consistency_loss
+from brain_project.modules.m3_invariance.augment import *
+from brain_project.modules.m3_invariance.warp import warp_inverse
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+from brain_project.modules.m2_grouping import CoCircularity, stabilize_regions
+
+
+CACHE_DIR = "./runs/m3_cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+
+# ---------------- LOAD IMAGES ----------------
+def load_images(folder, size=256):
+    paths = sorted(glob.glob(os.path.join(folder, "*.*")))
+    imgs = []
+    for p in paths:
+        im = Image.open(p).convert("RGB").resize((size, size))
+        x = torch.from_numpy(np.array(im)).float()/255.
+        imgs.append(x.permute(2,0,1))
+    return torch.stack(imgs)
+
+
+# ---------------- BUILD CACHE ----------------
+@torch.no_grad()
+def build_cache(folder, name):
+
+    cache_file = f"{CACHE_DIR}/{name}.pt"
+    if os.path.exists(cache_file):
+        print("✔ Cache exists:", cache_file)
+        return torch.load(cache_file)
+
+    print(">> Building cache:", name)
+
+    X = load_images(folder)
+
+    m1 = M1V1V2Perception(k_regions=8, use_depth=True).eval()
+    m2 = CoCircularity()
+
+    S2_all = []
+
+    for i in range(len(X)):
+        x = X[i:i+1]
+
+        out1 = m1(x)
+        c = m2(out1.boundary)
+
+        s2 = stabilize_regions(
+            out1.s1, out1.boundary,
+            c.completed, out1.depth
+        ).s2
+
+        S2_all.append(s2.cpu())
+
+    S2_all = torch.cat(S2_all)
+    torch.save(S2_all, cache_file)
+
+    print("✔ Cache saved:", cache_file)
+    return S2_all
+
+
+# ---------------- MAIN ----------------
+def main():
+
+    train_dir = "./data/real_images/train"
+    test_dir  = "./data/real_images/test"
+    epochs = 10
+    lr = 1e-3
+
+    print("\n=== M3 TRAIN (FAST) ===")
+
+    S2 = build_cache(train_dir, "train")
+    S2_test  = build_cache(test_dir, "test")
+
+    refiner = M3Refiner(k=8)
+    opt = optim.Adam(refiner.parameters(), lr=lr)
+
+    for ep in range(epochs):
+
+        losses = []
+        t0 = time.time()
+
+        for i in range(len(S2)):
+
+            s2 = S2[i:i+1]
+
+            # augmentation spatiale SUR S2
+            rot, tx, ty, sc = random_affine_params(
+                max_rot=10, max_trans=0.08, max_scale=0.08
+            )
+            A = affine_matrix(rot, tx, ty, sc)
+
+            grid = torch.nn.functional.affine_grid(
+                A.unsqueeze(0), s2.size(), align_corners=False
+            )
+
+            s2b = torch.nn.functional.grid_sample(
+                s2, grid, align_corners=False
+            )
+
+            # refine
+            s2a_r = refiner(s2)
+            s2b_r = refiner(s2b)
+
+            s2b_w = warp_inverse(s2b_r, grid)
+
+            loss = consistency_loss(s2a_r, s2b_w)
+
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+
+            losses.append(loss.item())
+
+        print(f"[Epoch {ep+1:02d}] "
+              f"loss={np.mean(losses):.4f} "
+              f"time={time.time()-t0:.1f}s")
+
+    os.makedirs("./runs/m3", exist_ok=True)
+    torch.save(refiner.state_dict(), "./runs/m3/refiner_last.pth")
+    print("✔ Saved: ./runs/m3/refiner_last.pth")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/train_probe.py
+================================================
+from __future__ import annotations
+
+import random
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, Subset
+from torchvision import datasets, transforms
+from tqdm import tqdm
+
+from brain_project.modules.m1_perception import M1PerceptionInherited
+
+
+# -----------------------
+# Utils
+# -----------------------
+def set_seed(seed: int = 123):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+def few_shot_subset(dataset, n_per_class: int, num_classes: int = 10, seed: int = 123):
+    set_seed(seed)
+    indices_by_class = {c: [] for c in range(num_classes)}
+    for i in range(len(dataset)):
+        _, y = dataset[i]
+        indices_by_class[y].append(i)
+
+    chosen = []
+    for c in range(num_classes):
+        idxs = indices_by_class[c]
+        random.shuffle(idxs)
+        chosen.extend(idxs[:n_per_class])
+
+    return Subset(dataset, chosen)
+
+
+# -----------------------
+# Embedding extractors
+# -----------------------
+@torch.no_grad()
+def extract_embeddings_baseline(m1, loader, device):
+    """
+    Baseline: global average pooling of backbone features.
+    """
+    X, Y = [], []
+    m1.eval()
+    for x, y in loader:
+        x = x.to(device)
+        out = m1(x)
+        feat = out.feat                      # (B, C, Hf, Wf)
+        emb = feat.mean(dim=(2, 3))          # GAP -> (B, C)
+        X.append(emb.cpu())
+        Y.append(y)
+    return torch.cat(X), torch.cat(Y)
+
+
+@torch.no_grad()
+def extract_embeddings_s1(m1, loader, device):
+    """
+    Ours: S1-guided regional pooling.
+    For each region k:
+      e_k = sum_{p}( S1_k(p) * feat(p) ) / sum_{p} S1_k(p)
+    Then concatenate all regions: (B, K*C)
+    """
+    X, Y = [], []
+    m1.eval()
+    for x, y in loader:
+        x = x.to(device)
+        out = m1(x)
+        feat = out.feat          # (B, C, Hf, Wf)
+        s1   = out.s1            # (B, K, H, W)
+
+        # downsample S1 to feature resolution
+        s1f = torch.nn.functional.interpolate(
+            s1, size=feat.shape[-2:], mode="bilinear", align_corners=False
+        )                          # (B, K, Hf, Wf)
+
+        B, K, Hf, Wf = s1f.shape
+        C = feat.shape[1]
+
+        # compute regional embeddings
+        regs = []
+        for k in range(K):
+            w = s1f[:, k:k+1]                          # (B,1,Hf,Wf)
+            num = (feat * w).sum(dim=(2, 3))           # (B,C)
+            den = w.sum(dim=(2, 3)).clamp_min(1e-6)    # (B,1)
+            ek = num / den                             # (B,C)
+            regs.append(ek)
+
+        emb = torch.cat(regs, dim=1)                    # (B, K*C)
+        X.append(emb.cpu())
+        Y.append(y)
+    return torch.cat(X), torch.cat(Y)
+
+
+# -----------------------
+# Linear probe
+# -----------------------
+def train_linear_probe(Xtr, Ytr, Xte, Yte, num_classes=10, epochs=200, lr=1e-2):
+    device = torch.device("cpu")
+    model = nn.Linear(Xtr.shape[1], num_classes).to(device)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    loss_fn = nn.CrossEntropyLoss()
+
+    for _ in range(epochs):
+        opt.zero_grad()
+        logits = model(Xtr.to(device))
+        loss = loss_fn(logits, Ytr.to(device))
+        loss.backward()
+        opt.step()
+
+    with torch.no_grad():
+        logits = model(Xte.to(device))
+        acc = (logits.argmax(dim=1).cpu() == Yte).float().mean().item()
+    return acc
+
+
+# -----------------------
+# Main experiment
+# -----------------------
+def main():
+    device = torch.device("cpu")
+    set_seed(123)
+
+    tf = transforms.Compose([
+        transforms.Resize((128, 128)),
+        transforms.ToTensor(),
+    ])
+
+    train_ds = datasets.CIFAR10("./data", train=True, download=True, transform=tf)
+    test_ds  = datasets.CIFAR10("./data", train=False, download=True, transform=tf)
+
+    test_loader = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=2)
+
+    # M1 perception inherited (frozen)
+    m1 = M1PerceptionInherited(
+        k_regions=8,
+        pretrained=True,
+        freeze_backbone=True,
+    ).to(device)
+
+    shots = [1, 5, 10, 50]
+    print("\n=== Linear Probe Few-Shot Results ===")
+
+    for n in shots:
+        fs_ds = few_shot_subset(train_ds, n_per_class=n, seed=123)
+        fs_loader = DataLoader(fs_ds, batch_size=32, shuffle=True, num_workers=2)
+
+        # Baseline
+        Xtr_b, Ytr = extract_embeddings_baseline(m1, fs_loader, device)
+        Xte_b, Yte = extract_embeddings_baseline(m1, test_loader, device)
+        acc_b = train_linear_probe(Xtr_b, Ytr, Xte_b, Yte)
+
+        # Ours (S1-guided)
+        Xtr_s, _ = extract_embeddings_s1(m1, fs_loader, device)
+        Xte_s, _ = extract_embeddings_s1(m1, test_loader, device)
+        acc_s = train_linear_probe(Xtr_s, Ytr, Xte_s, Yte)
+
+        print(f"{n:>3} shot(s) | Baseline: {acc_b*100:5.1f}% | S1-guided: {acc_s*100:5.1f}%")
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/utils.py
+================================================
+from PIL import Image
+import torch
+from torchvision import transforms
+
+
+def load_image_tensor(path, size=256):
+    img = Image.open(path).convert("RGB")
+
+    tf = transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.ToTensor()
+    ])
+
+    x = tf(img).unsqueeze(0)  # (1,3,H,W)
+    return x
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m1.py
+================================================
+from brain_project.modules.m1_perception import M1PerceptionInherited
+from brain_project.utils.visualize import visualize_s1
+
+def main():
+    m1 = M1PerceptionInherited(
+        k_regions=8,
+        pretrained=True,
+        freeze_backbone=True,
+    )
+
+    visualize_s1(
+        model=m1,
+        dataset="cifar10",
+        data_root="./data",
+        index=3,          # change pour voir d'autres images
+        img_size=128,
+        out_dir="./runs/visualize_s1",
+    )
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m1_v1v2.py
+================================================
+from __future__ import annotations
+
+import os
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+from torchvision import datasets, transforms
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+
+
+def main():
+    os.makedirs("./runs/visualize_m1_v1v2", exist_ok=True)
+    device = torch.device("cpu")
+
+    tf = transforms.Compose([
+        transforms.Resize((128, 128)),
+        transforms.ToTensor(),
+    ])
+
+    ds = datasets.CIFAR10("./data", train=True, download=True, transform=tf)
+    x, y = ds[3]
+    x = x.unsqueeze(0).to(device)
+
+    m1 = M1V1V2Perception(
+        k_regions=8,
+        use_depth=True,
+        midas_work_res=256,
+        kmeans_iters=12,
+        kmeans_temp=0.15,
+    ).to(device).eval()
+
+    with torch.no_grad():
+        out = m1(x)
+
+    img = x[0].permute(1, 2, 0).cpu().numpy()
+    depth = out.depth[0, 0].cpu().numpy()
+    gabor = out.gabor_energy[0, 0].cpu().numpy()
+    boundary = out.boundary[0, 0].cpu().numpy()
+    s1 = out.s1[0].cpu()
+    arg = torch.argmax(s1, dim=0).numpy()
+
+    K = s1.shape[0]
+    cols = 4
+    rows = int(np.ceil((K + 5) / cols))
+
+    plt.figure(figsize=(4 * cols, 4 * rows))
+
+    # Original
+    plt.subplot(rows, cols, 1)
+    plt.imshow(img)
+    plt.title("Original")
+    plt.axis("off")
+
+    # Depth
+    plt.subplot(rows, cols, 2)
+    plt.imshow(depth, cmap="gray")
+    plt.title("MiDaS depth (norm)")
+    plt.axis("off")
+
+    # Gabor energy
+    plt.subplot(rows, cols, 3)
+    plt.imshow(gabor, cmap="gray")
+    plt.title("V1 Gabor energy")
+    plt.axis("off")
+
+    # Boundary
+    plt.subplot(rows, cols, 4)
+    plt.imshow(boundary, cmap="gray")
+    plt.title("V2 boundary strength")
+    plt.axis("off")
+
+    # Argmax
+    plt.subplot(rows, cols, 5)
+    plt.imshow(arg, cmap="tab10")
+    plt.title("S1 argmax (regions)")
+    plt.axis("off")
+
+    # Regions
+    for k in range(K):
+        plt.subplot(rows, cols, 6 + k)
+        plt.imshow(s1[k].numpy(), cmap="gray")
+        plt.title(f"Region {k}")
+        plt.axis("off")
+
+    plt.tight_layout()
+    out_path = "./runs/visualize_m1_v1v2/m1_v1v2_idx_3.png"
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+    print(f"Saved: {out_path}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m1_v2_compare.py
+================================================
+from __future__ import annotations
+import os
+import torch
+import matplotlib.pyplot as plt
+from torchvision import datasets, transforms
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+
+
+def main():
+    os.makedirs("./runs/visualize_v2_compare", exist_ok=True)
+    device = torch.device("cpu")
+
+    tf = transforms.Compose([
+        transforms.Resize((160, 160)),
+        transforms.ToTensor(),
+    ])
+
+    ds = datasets.STL10("./data", split="train", download=True, transform=tf)
+    x, _ = ds[7]
+    x = x.unsqueeze(0).to(device)
+
+    m1 = M1V1V2Perception(
+        k_regions=8,
+        use_depth=True,
+        midas_work_res=256,
+    ).to(device).eval()
+
+    with torch.no_grad():
+        out = m1(x)
+
+    img = x[0].permute(1, 2, 0).cpu()
+    boundary = out.boundary[0, 0].cpu()
+    s1 = out.s1[0].cpu()
+    arg = torch.argmax(s1, dim=0)
+
+    plt.figure(figsize=(16, 4))
+
+    plt.subplot(1, 4, 1)
+    plt.imshow(img)
+    plt.title("Original")
+    plt.axis("off")
+
+    plt.subplot(1, 4, 2)
+    plt.imshow(out.depth[0, 0].cpu(), cmap="gray")
+    plt.title("MiDaS depth")
+    plt.axis("off")
+
+    plt.subplot(1, 4, 3)
+    plt.imshow(boundary, cmap="gray")
+    plt.title("V2 boundary (diffused)")
+    plt.axis("off")
+
+    plt.subplot(1, 4, 4)
+    plt.imshow(arg, cmap="tab10")
+    plt.title("S1 argmax")
+    plt.axis("off")
+
+    path = "./runs/visualize_v2_compare/v2_diffusion.png"
+    plt.tight_layout()
+    plt.savefig(path, dpi=150)
+    plt.close()
+
+    print("Saved:", path)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m2_cocircularity.py
+================================================
+from __future__ import annotations
+
+import os
+import glob
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+from PIL import Image
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+from brain_project.modules.m2_grouping import CoCircularity
+
+
+def load_image(path: str, img_size: int = 256) -> torch.Tensor:
+    im = Image.open(path).convert("RGB")
+    im = im.resize((img_size, img_size), resample=Image.BILINEAR)
+    x = torch.from_numpy(np.array(im)).float() / 255.0
+    return x.permute(2, 0, 1).unsqueeze(0).contiguous()
+
+
+@torch.no_grad()
+def main():
+    in_dir = os.environ.get("M2_IN_DIR", "./data/real_images")
+    out_dir = os.environ.get("M2_OUT_DIR", "./runs/m2_cocircularity")
+    img_size = int(os.environ.get("M2_IMG_SIZE", "256"))
+    midas_res = int(os.environ.get("M2_MIDAS_RES", "256"))
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    exts = ("*.jpg", "*.jpeg", "*.png", "*.webp")
+    paths = []
+    for e in exts:
+        paths += glob.glob(os.path.join(in_dir, e))
+    paths = sorted(paths)
+    if not paths:
+        raise SystemExit(f"No images found in {in_dir}")
+
+    path = paths[0]
+    x = load_image(path, img_size=img_size)
+
+    # M1
+    m1 = M1V1V2Perception(k_regions=8, use_depth=True, midas_work_res=midas_res).eval()
+    out1 = m1(x)
+
+    # M2.2
+    m2 = CoCircularity(sigma_theta=0.35, sigma_dist=1.25, iters=10, alpha=0.20)
+    out2 = m2(out1.boundary)
+
+    img = x[0].permute(1, 2, 0).numpy()
+    depth = out1.depth[0, 0].numpy()
+    boundary = out1.boundary[0, 0].numpy()
+    cocirc = out2.cocirc[0, 0].cpu().numpy()
+    completed = out2.completed[0, 0].cpu().numpy()
+
+    plt.figure(figsize=(20, 4))
+
+    plt.subplot(1, 5, 1)
+    plt.imshow(img)
+    plt.title("Original")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 2)
+    plt.imshow(depth, cmap="gray")
+    plt.title("MiDaS depth")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 3)
+    plt.imshow(boundary, cmap="gray")
+    plt.title("M1 V2 boundary")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 4)
+    plt.imshow(cocirc, cmap="gray")
+    plt.title("M2 co-circularity (cocirc)")
+    plt.axis("off")
+
+    plt.subplot(1, 5, 5)
+    plt.imshow(completed, cmap="gray")
+    plt.title("M2 completed contours")
+    plt.axis("off")
+
+    out_path = os.path.join(out_dir, "m2_cocircularity.png")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+    print("Saved:", out_path)
+    print("Input image:", path)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m2_endstopping.py
+================================================
+from __future__ import annotations
+
+import os
+import glob
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+from PIL import Image
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+from brain_project.modules.m2_grouping import EndStopping
+
+
+def load_image(path: str, img_size: int = 256) -> torch.Tensor:
+    im = Image.open(path).convert("RGB")
+    im = im.resize((img_size, img_size), resample=Image.BILINEAR)
+    x = torch.from_numpy(np.array(im)).float() / 255.0
+    return x.permute(2, 0, 1).unsqueeze(0).contiguous()
+
+
+@torch.no_grad()
+def main():
+    in_dir = os.environ.get("M2_IN_DIR", "./data/real_images")
+    out_dir = os.environ.get("M2_OUT_DIR", "./runs/m2_endstopping")
+    img_size = int(os.environ.get("M2_IMG_SIZE", "256"))
+    midas_res = int(os.environ.get("M2_MIDAS_RES", "256"))
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    exts = ("*.jpg", "*.jpeg", "*.png", "*.webp")
+    paths = []
+    for e in exts:
+        paths += glob.glob(os.path.join(in_dir, e))
+    paths = sorted(paths)
+    if not paths:
+        raise SystemExit(f"No images found in {in_dir}")
+
+    # pick one
+    path = paths[0]
+    x = load_image(path, img_size=img_size)
+
+    # M1
+    m1 = M1V1V2Perception(k_regions=8, use_depth=True, midas_work_res=midas_res).eval()
+    out1 = m1(x)
+
+    # M2 end-stopping
+    m2 = EndStopping(n_bins=8, radius=7, edge_smooth=0).eval()
+    out2 = m2(out1.boundary)  # boundary is already diffused in your current M1 setup
+
+    img = x[0].permute(1, 2, 0).numpy()
+    depth = out1.depth[0, 0].numpy()
+    boundary = out1.boundary[0, 0].numpy()
+    end_map = out2.end_map[0, 0].numpy()
+
+    plt.figure(figsize=(16, 4))
+
+    plt.subplot(1, 4, 1)
+    plt.imshow(img)
+    plt.title("Original")
+    plt.axis("off")
+
+    plt.subplot(1, 4, 2)
+    plt.imshow(depth, cmap="gray")
+    plt.title("MiDaS depth")
+    plt.axis("off")
+
+    plt.subplot(1, 4, 3)
+    plt.imshow(boundary, cmap="gray")
+    plt.title("M1 V2 boundary")
+    plt.axis("off")
+
+    plt.subplot(1, 4, 4)
+    plt.imshow(end_map, cmap="gray")
+    plt.title("M2 end-stopping (end_map)")
+    plt.axis("off")
+
+    out_path = os.path.join(out_dir, "m2_endstopping.png")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+    print("Saved:", out_path)
+    print("Input image:", path)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m2_s2.py
+================================================
+from __future__ import annotations
+
+import os
+import glob
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+from PIL import Image
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+from brain_project.modules.m2_grouping import CoCircularity, stabilize_regions
+
+
+def load_image(path: str, img_size: int = 256) -> torch.Tensor:
+    im = Image.open(path).convert("RGB")
+    im = im.resize((img_size, img_size), resample=Image.BILINEAR)
+    x = torch.from_numpy(np.array(im)).float() / 255.0
+    return x.permute(2, 0, 1).unsqueeze(0).contiguous()
+
+
+@torch.no_grad()
+def main():
+    in_dir = os.environ.get("M2_IN_DIR", "./data/real_images")
+    out_dir = os.environ.get("M2_OUT_DIR", "./runs/m2_s2")
+    img_size = int(os.environ.get("M2_IMG_SIZE", "256"))
+    midas_res = int(os.environ.get("M2_MIDAS_RES", "256"))
+    k_regions = int(os.environ.get("M2_K", "8"))
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    exts = ("*.jpg", "*.jpeg", "*.png", "*.webp")
+    paths = []
+    for e in exts:
+        paths += glob.glob(os.path.join(in_dir, e))
+    paths = sorted(paths)
+    if not paths:
+        raise SystemExit(f"No images found in {in_dir}")
+
+    path = paths[0]
+    x = load_image(path, img_size=img_size)
+
+    # M1
+    m1 = M1V1V2Perception(k_regions=k_regions, use_depth=True, midas_work_res=midas_res).eval()
+    out1 = m1(x)
+
+    # M2.2 co-circularity completion
+    m2_c = CoCircularity(sigma_theta=0.35, sigma_dist=1.25, iters=10, alpha=0.20)
+    out2 = m2_c(out1.boundary)
+
+    # M2.3 region stabilization (S2)
+    out3 = stabilize_regions(
+        s1=out1.s1,
+        barrier_m1=out1.boundary,
+        completed_m2=out2.completed,
+        depth=out1.depth,
+        iters=10,
+        alpha=0.35,
+        beta_barrier=6.0,
+        beta_depth=2.0,
+    )
+
+    img = x[0].permute(1, 2, 0).numpy()
+    depth = out1.depth[0, 0].numpy()
+    boundary = out1.boundary[0, 0].numpy()
+    completed = out2.completed[0, 0].numpy()
+    barrier = out3.barrier[0, 0].numpy()
+
+    s1_arg = torch.argmax(out1.s1[0], dim=0).numpy()
+    s2_arg = torch.argmax(out3.s2[0], dim=0).numpy()
+
+    plt.figure(figsize=(20, 8))
+
+    plt.subplot(2, 4, 1)
+    plt.imshow(img)
+    plt.title("Original")
+    plt.axis("off")
+
+    plt.subplot(2, 4, 2)
+    plt.imshow(depth, cmap="gray")
+    plt.title("MiDaS depth")
+    plt.axis("off")
+
+    plt.subplot(2, 4, 3)
+    plt.imshow(boundary, cmap="gray")
+    plt.title("M1 boundary (diffused)")
+    plt.axis("off")
+
+    plt.subplot(2, 4, 4)
+    plt.imshow(completed, cmap="gray")
+    plt.title("M2 completed contours")
+    plt.axis("off")
+
+    plt.subplot(2, 4, 5)
+    plt.imshow(s1_arg, cmap="tab10")
+    plt.title("S1 argmax")
+    plt.axis("off")
+
+    plt.subplot(2, 4, 6)
+    plt.imshow(barrier, cmap="gray")
+    plt.title("Barrier used (max)")
+    plt.axis("off")
+
+    plt.subplot(2, 4, 7)
+    plt.imshow(s2_arg, cmap="tab10")
+    plt.title("S2 argmax (stabilized)")
+    plt.axis("off")
+
+    # show one region prob before/after (region 0)
+    plt.subplot(2, 4, 8)
+    plt.imshow(out3.s2[0, 0].numpy(), cmap="gray")
+    plt.title("S2 region0 prob")
+    plt.axis("off")
+
+    out_path = os.path.join(out_dir, "m2_s2.png")
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+    print("Saved:", out_path)
+    print("Input image:", path)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m3.py
+================================================
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+import glob
+import os
+
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+from brain_project.modules.m2_grouping import CoCircularity, stabilize_regions
+
+from brain_project.modules.m3_invariance.augment import (
+    random_affine_params, affine_matrix, apply_affine
+)
+from brain_project.modules.m3_invariance.warp import warp_inverse
+from brain_project.modules.m3_invariance.m3_consistency import consistency_loss
+
+
+def load_image(path, size=256):
+    im = Image.open(path).convert("RGB").resize((size, size))
+    x = torch.from_numpy(np.array(im)).float()/255.
+    return x.permute(2,0,1).unsqueeze(0)
+
+
+def main():
+
+    # ====== Charger même dossier que précédemment ======
+    img_dir = "./data/real_images"
+    paths = sorted(glob.glob(os.path.join(img_dir, "*.*")))
+
+    if len(paths) == 0:
+        raise RuntimeError("Aucune image trouvée dans ./data/real_images")
+
+    path = paths[0]   # même image que M1/M2
+    print("Using image:", path)
+
+    x = load_image(path)
+
+    # ====== Augmentation ======
+    rot, tx, ty, sc = random_affine_params()
+    A = affine_matrix(rot, tx, ty, sc)
+    xa, grid = apply_affine(x, A)
+
+    # ====== Pipeline M1 + M2 ======
+    m1 = M1V1V2Perception(k_regions=8, use_depth=True).eval()
+
+    out1a = m1(x)
+    out1b = m1(xa)
+
+    m2 = CoCircularity()
+    c_a = m2(out1a.boundary)
+    c_b = m2(out1b.boundary)
+
+    s2a = stabilize_regions(
+        out1a.s1, out1a.boundary, c_a.completed, out1a.depth
+    ).s2
+
+    s2b = stabilize_regions(
+        out1b.s1, out1b.boundary, c_b.completed, out1b.depth
+    ).s2
+
+    # ====== Warp inverse ======
+    s2b_w = warp_inverse(s2b, grid)
+
+    loss = consistency_loss(s2a, s2b_w)
+    print("Consistency loss:", loss.item())
+
+    # ====== Visualisation ======
+    plt.figure(figsize=(16,8))
+
+    plt.subplot(2,4,1)
+    plt.imshow(x[0].permute(1,2,0))
+    plt.title("Original")
+
+    plt.subplot(2,4,2)
+    plt.imshow(xa[0].permute(1,2,0))
+    plt.title("Augmented")
+
+    plt.subplot(2,4,3)
+    plt.imshow(torch.argmax(s2a[0],0), cmap="tab10")
+    plt.title("S2 original")
+
+    plt.subplot(2,4,4)
+    plt.imshow(torch.argmax(s2b[0],0), cmap="tab10")
+    plt.title("S2 augmented")
+
+    plt.subplot(2,4,5)
+    plt.imshow(torch.argmax(s2b_w[0],0), cmap="tab10")
+    plt.title("Warped back")
+
+    plt.subplot(2,4,6)
+    plt.imshow((s2a[0,0]-s2b_w[0,0]).abs(), cmap="hot")
+    plt.title("|Δ region0|")
+
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/train/visualize_m3_slots.py
+================================================
+from pathlib import Path
+import torch
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+
+from brain_project.train.utils import load_image_tensor
+
+# ===== M1 =====
+from brain_project.modules.m1_perception.soft_regions import M1V1V2Perception
+
+# ===== M2 (classes explicites) =====
+from brain_project.modules.m2_grouping.end_stopping import EndStopping
+from brain_project.modules.m2_grouping.cocircularity import CoCircularity
+from brain_project.modules.m2_grouping.region_stabilization import RegionStabilization
+
+# ===== M3 =====
+from brain_project.modules.m3_invariance.geodesic_slots import geodesic_em_slots
+
+
+OUT = Path("./runs/m3_slots")
+OUT.mkdir(parents=True, exist_ok=True)
+
+
+def gradient_edge(x: torch.Tensor) -> torch.Tensor:
+    """
+    x: (B,K,H,W) -> edge: (B,1,H,W)
+    """
+    dx = x[..., 1:, :] - x[..., :-1, :]       # (B,K,H-1,W)
+    dx = F.pad(dx, (0, 0, 0, 1))              # -> (B,K,H,W)
+
+    dy = x[..., :, 1:] - x[..., :, :-1]       # (B,K,H,W-1)
+    dy = F.pad(dy, (0, 1, 0, 0))              # -> (B,K,H,W)
+
+    g = torch.sqrt(dx.pow(2) + dy.pow(2))     # (B,K,H,W)
+    g = g.mean(1, keepdim=True)               # (B,1,H,W)
+    g = g / (g.max() + 1e-6)
+    return g
+
+
+def unwrap_tensor(out):
+    """
+    Convertit les objets *Out* (EndStoppingOut, etc.) en tenseur.
+    Stratégie: champs courants, sinon dict/tuple, sinon erreur explicite.
+    """
+    if isinstance(out, torch.Tensor):
+        return out
+
+    # champs fréquents
+    for k in ("edge", "edges", "out", "map", "resp", "response", "tensor", "x"):
+        if hasattr(out, k):
+            v = getattr(out, k)
+            if isinstance(v, torch.Tensor):
+                return v
+
+    # dict
+    if isinstance(out, dict):
+        for v in out.values():
+            if isinstance(v, torch.Tensor):
+                return v
+
+    # tuple/list
+    if isinstance(out, (tuple, list)):
+        for v in out:
+            if isinstance(v, torch.Tensor):
+                return v
+
+    raise TypeError(
+        f"Impossible d'extraire un Tensor depuis {type(out)}.\n"
+        f"Attributs disponibles: {dir(out)[:40]} ..."
+    )
+
+
+@torch.no_grad()
+def main():
+    img_path = "./data/real_images/test/5805a4ae-64f4-4d98-be10-612e0483f1fe.jpg"
+    print("Using image:", img_path)
+
+    x = load_image_tensor(img_path)
+
+    # ========= M1 =========
+    m1 = M1V1V2Perception()
+    out1 = m1(x)
+    s1 = out1.s1
+    depth = out1.depth
+
+    # ========= Edge =========
+    edge = gradient_edge(s1)                  # (B,1,H,W)
+
+    # ========= M2 (pipeline explicite) =========
+    m2_es = EndStopping(n_bins=8)
+    m2_cc = CoCircularity()                   # si ton __init__ demande des args, on ajustera
+    m2_rs = RegionStabilization()             # idem
+
+    e_out = m2_es(edge)
+    e = unwrap_tensor(e_out)                  # <<<<< FIX: extraire un Tensor pour cc
+
+    c_out = m2_cc(e)
+    c = unwrap_tensor(c_out)                  # <<<<< idem pour rs
+
+    s2_out = m2_rs(c)
+    s2 = unwrap_tensor(s2_out)
+
+    # ========= M3 (géodésique) =========
+    out = geodesic_em_slots(
+        s2,
+        barrier=s2,
+        num_slots=6,
+        em_iters=5,
+        tau=0.20,
+        w_barrier=6.0,
+        w_feat=1.0,
+        dijkstra_down=1,
+        seed_min_sep=12,
+    )
+
+    masks = out.masks[0]
+    labels = out.labels[0]
+
+    # ========= VISU =========
+    fig, axes = plt.subplots(3, 4, figsize=(14, 10))
+
+    axes[0, 0].imshow(x[0].permute(1, 2, 0))
+    axes[0, 0].set_title("Original")
+
+    axes[0, 1].imshow(depth[0, 0], cmap="gray")
+    axes[0, 1].set_title("MiDaS depth")
+
+    axes[0, 2].imshow(s1.argmax(1)[0])
+    axes[0, 2].set_title("M1 regions (S1)")
+
+    axes[0, 3].imshow(edge[0, 0], cmap="gray")
+    axes[0, 3].set_title("Edge map")
+
+    axes[1, 0].imshow(s2.argmax(1)[0])
+    axes[1, 0].set_title("M2 regions (S2)")
+
+    axes[1, 1].imshow(labels)
+    axes[1, 1].set_title("M3 labels")
+
+    for i in range(4):
+        axes[2, i].imshow(masks[i], cmap="gray")
+        axes[2, i].set_title(f"Slot {i}")
+
+    for ax in axes.flatten():
+        ax.axis("off")
+
+    plt.tight_layout()
+    out_path = OUT / "m3_slots.png"
+    plt.savefig(out_path, dpi=160)
+    print("Saved:", out_path)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+================================================
+FILE: src/brain_project/utils/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/utils/device.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/utils/metrics_m1.py
+================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, Tuple
+
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class M1Metrics:
+    entropy_mean: float
+    entropy_std: float
+    region_area_gini: float
+    boundary_grad_corr: float
+    stability_kl: float
+
+
+def _entropy_per_pixel(s1: torch.Tensor) -> torch.Tensor:
+    """
+    s1: (B,K,H,W) on simplex
+    returns: (B,H,W) entropy
+    """
+    eps = 1e-8
+    p = s1.clamp_min(eps)
+    h = -(p * p.log()).sum(dim=1)  # (B,H,W)
+    return h
+
+
+def entropy_stats(s1: torch.Tensor) -> Tuple[float, float]:
+    h = _entropy_per_pixel(s1)             # (B,H,W)
+    return float(h.mean().item()), float(h.std().item())
+
+
+def region_area_gini(s1: torch.Tensor) -> float:
+    """
+    Compute Gini coefficient of hard region areas, averaged over batch.
+    Lower gini => more balanced regions. Higher => one region dominates.
+    """
+    B, K, H, W = s1.shape
+    hard = torch.argmax(s1, dim=1)  # (B,H,W)
+    g_list = []
+    for b in range(B):
+        counts = torch.bincount(hard[b].view(-1), minlength=K).float()
+        x = counts / counts.sum().clamp_min(1.0)  # proportions
+        # Gini for proportions:
+        # G = sum_i sum_j |xi - xj| / (2 K sum_i xi) ; but sum_i xi = 1
+        diff = torch.abs(x.unsqueeze(0) - x.unsqueeze(1)).sum()
+        g = diff / (2.0 * K)
+        g_list.append(g)
+    return float(torch.stack(g_list).mean().item())
+
+
+def _image_luminance(x: torch.Tensor) -> torch.Tensor:
+    # x: (B,3,H,W) in [0,1]
+    lum = (0.2989 * x[:, 0:1] + 0.5870 * x[:, 1:2] + 0.1140 * x[:, 2:3]).clamp(0, 1)
+    return lum
+
+
+def boundary_gradient_correlation(x: torch.Tensor, boundary: torch.Tensor) -> float:
+    """
+    x: (B,3,H,W), boundary: (B,1,H,W)
+    Compute Pearson correlation between boundary strength and image gradient magnitude.
+    """
+    lum = _image_luminance(x)  # (B,1,H,W)
+
+    # Sobel filters
+    kx = torch.tensor([[-1, 0, 1],
+                       [-2, 0, 2],
+                       [-1, 0, 1]], dtype=lum.dtype, device=lum.device).view(1,1,3,3)
+    ky = torch.tensor([[-1, -2, -1],
+                       [ 0,  0,  0],
+                       [ 1,  2,  1]], dtype=lum.dtype, device=lum.device).view(1,1,3,3)
+
+    gx = F.conv2d(lum, kx, padding=1)
+    gy = F.conv2d(lum, ky, padding=1)
+    grad = torch.sqrt(gx * gx + gy * gy + 1e-8)  # (B,1,H,W)
+
+    b = boundary
+    g = grad
+
+    # Flatten
+    b = b.reshape(b.shape[0], -1)
+    g = g.reshape(g.shape[0], -1)
+
+    # Pearson per batch then mean
+    eps = 1e-8
+    b_mean = b.mean(dim=1, keepdim=True)
+    g_mean = g.mean(dim=1, keepdim=True)
+    b0 = b - b_mean
+    g0 = g - g_mean
+    cov = (b0 * g0).mean(dim=1)
+    b_std = b0.pow(2).mean(dim=1).sqrt().clamp_min(eps)
+    g_std = g0.pow(2).mean(dim=1).sqrt().clamp_min(eps)
+    corr = cov / (b_std * g_std)
+    return float(corr.mean().item())
+
+
+def stability_kl(s1: torch.Tensor, s1_aug: torch.Tensor) -> float:
+    """
+    Average KL divergence KL(s1 || s1_aug) over pixels and batch.
+    s1, s1_aug: (B,K,H,W)
+    """
+    eps = 1e-8
+    p = s1.clamp_min(eps)
+    q = s1_aug.clamp_min(eps)
+    kl = (p * (p.log() - q.log())).sum(dim=1)  # (B,H,W)
+    return float(kl.mean().item())
+
+
+def compute_m1_metrics(
+    x: torch.Tensor,
+    s1: torch.Tensor,
+    boundary: torch.Tensor,
+    s1_aug: torch.Tensor,
+) -> M1Metrics:
+    h_mean, h_std = entropy_stats(s1)
+    gini = region_area_gini(s1)
+    corr = boundary_gradient_correlation(x, boundary)
+    kl = stability_kl(s1, s1_aug)
+    return M1Metrics(
+        entropy_mean=h_mean,
+        entropy_std=h_std,
+        region_area_gini=gini,
+        boundary_grad_corr=corr,
+        stability_kl=kl,
+    )
+
+
+
+
+================================================
+FILE: src/brain_project/utils/seed.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/brain_project/utils/visualize.py
+================================================
+from __future__ import annotations
+
+import os
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from torchvision import datasets, transforms
+
+from brain_project.modules.m1_perception import M1PerceptionInherited
+
+
+def visualize_s1(
+    model: M1PerceptionInherited,
+    dataset: str = "cifar10",
+    data_root: str = "./data",
+    index: int = 0,
+    img_size: int = 128,
+    out_dir: str = "./runs/visualize_s1",
+):
+    """
+    Visualize soft regions S1 for a single image.
+    """
+
+    device = torch.device("cpu")
+    model = model.to(device).eval()
+
+    # -------- dataset --------
+    tf = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+    ])
+
+    if dataset == "cifar10":
+        ds = datasets.CIFAR10(data_root, train=True, download=True, transform=tf)
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
+
+    x, y = ds[index]
+    x = x.unsqueeze(0).to(device)  # (1,3,H,W)
+
+    # -------- forward --------
+    with torch.no_grad():
+        out = model(x)
+        s1 = out.s1[0]  # (K,H,W)
+
+    K, H, W = s1.shape
+
+    # -------- plots --------
+    os.makedirs(out_dir, exist_ok=True)
+
+    fig_cols = 4
+    fig_rows = int(np.ceil((K + 2) / fig_cols))
+    plt.figure(figsize=(4 * fig_cols, 4 * fig_rows))
+
+    # Original image
+    plt.subplot(fig_rows, fig_cols, 1)
+    plt.imshow(x[0].permute(1, 2, 0).cpu())
+    plt.title("Original image")
+    plt.axis("off")
+
+    # Argmax map
+    plt.subplot(fig_rows, fig_cols, 2)
+    arg = torch.argmax(s1, dim=0).cpu().numpy()
+    plt.imshow(arg, cmap="tab10")
+    plt.title("S1 argmax (regions)")
+    plt.axis("off")
+
+    # Each region
+    for k in range(K):
+        plt.subplot(fig_rows, fig_cols, 3 + k)
+        plt.imshow(s1[k].cpu(), cmap="gray")
+        plt.title(f"Region {k}")
+        plt.axis("off")
+
+    plt.tight_layout()
+    out_path = os.path.join(out_dir, f"s1_regions_idx_{index}.png")
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+    print(f"Saved visualization to: {out_path}")
+
+
+
