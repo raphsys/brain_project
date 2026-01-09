@@ -15,6 +15,7 @@ venv/
 # Data and artifacts
 data/
 runs/
+scripts/
 
 # OS
 .DS_Store
